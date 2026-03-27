@@ -1,0 +1,4390 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <!-- #region HEAD: Meta tags, fonts, and styles -->
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Dodge the Digital S.T.D.s - Core Loop</title>
+    <!-- Single File Only -->
+    <script>
+        window.onerror = function (msg, url, line, col, error) {
+            let el = document.getElementById('global-error');
+            if (!el) {
+                el = document.createElement('div');
+                el.id = 'global-error';
+                el.style = 'position:fixed; top:20px; left:20px; z-index:999999; background:red; color:white; padding:10px; font-family:monospace; font-size:14px;';
+                document.body.appendChild(el);
+            }
+            el.innerHTML += "<b>GLOBAL ERROR:</b> " + msg + "<br/>" + "Line: " + line + ":" + col + "<br/>" + (error && error.stack ? error.stack.replace(/\\n/g, '<br/>') : '') + "<br/><br/>";
+        };
+        window.addEventListener('unhandledrejection', function (e) {
+            let el = document.getElementById('global-error');
+            if (!el) {
+                el = document.createElement('div');
+                el.id = 'global-error';
+                el.style = 'position:fixed; top:20px; left:20px; z-index:999999; background:red; color:white; padding:10px; font-family:monospace; font-size:14px;';
+                document.body.appendChild(el);
+            }
+            el.innerHTML += "<b>PROMISE ERROR:</b> " + e.reason + "<br/><br/>";
+        });
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,400;0,700;1,400&family=Orbitron:wght@400;700;900&display=swap"
+        rel="stylesheet">
+    <style>
+        :root {
+            --neon-blue: #00e5ff;
+            --neon-green: #39ff14;
+            --neon-purple: #9900ff;
+            --neon-pink: #f03e9f;
+            --gold: #ffd740;
+            --bg-dark: #0a001a;
+            --glass: rgba(10, 20, 40, 0.7);
+            --border: rgba(0, 229, 255, 0.3);
+            --font-main: 'Inter', system-ui, sans-serif;
+            --font-tech: 'Orbitron', sans-serif;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: #000;
+            font-family: 'Arial Black', Arial, sans-serif;
+            touch-action: none;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        #flash-overlay {
+            position: absolute;
+            inset: 0;
+            background: white;
+            opacity: 0;
+            pointer-events: none;
+            z-index: 50;
+            transition: opacity 0.3s ease-out;
+        }
+
+        #game-container {
+            position: relative;
+            background: var(--bg-dark);
+            overflow: hidden;
+            box-shadow: 0 0 60px rgba(0, 229, 255, 0.15), 0 0 120px rgba(240, 62, 159, 0.1);
+        }
+
+        canvas {
+            display: block;
+            width: 100% !important;
+            height: 100% !important;
+        }
+
+        /* ── HUD ── */
+        #hud {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 10;
+            display: none;
+            padding: 20px;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            width: 100%;
+        }
+
+        #timer-display,
+        #score-container,
+        #phase-display {
+            background: var(--glass);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            border: 1px solid var(--border);
+            padding: 8px 16px;
+            border-radius: 4px;
+            box-shadow: 0 0 15px rgba(0, 229, 255, 0.1);
+            font-family: var(--font-tech);
+            text-transform: uppercase;
+        }
+
+        #timer-display {
+            font-size: 24px;
+            font-weight: 900;
+            color: var(--neon-blue);
+            min-width: 90px;
+            text-align: center;
+        }
+
+        #phase-display {
+            font-size: 14px;
+            letter-spacing: 2px;
+            color: var(--neon-pink);
+            animation: phase-pulse 2s infinite ease-in-out;
+        }
+
+        @keyframes phase-pulse {
+
+            0%,
+            100% {
+                opacity: 0.7;
+                text-shadow: 0 0 5px var(--neon-pink);
+            }
+
+            50% {
+                opacity: 1;
+                text-shadow: 0 0 12px var(--neon-pink);
+            }
+        }
+
+        #current-score {
+            font-size: 24px;
+            font-weight: 900;
+            color: var(--gold);
+            text-shadow: 0 0 8px rgba(255, 215, 64, 0.5);
+        }
+
+        #best-score {
+            font-size: 12px;
+            color: rgba(255, 255, 255, 0.5);
+            font-family: var(--font-main);
+            text-shadow: none;
+            text-align: right;
+            margin-top: 4px;
+        }
+
+        /* Shields at bottom center */
+        .shields {
+            position: absolute;
+            bottom: 24px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 12px;
+            background: var(--glass);
+            border: 1px solid var(--border);
+            border-radius: 40px;
+            padding: 8px 24px;
+            box-shadow: 0 0 20px rgba(0, 229, 255, 0.1);
+        }
+
+        .shield {
+            font-size: 24px;
+            filter: drop-shadow(0 0 5px var(--neon-blue));
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        .shield.lost {
+            opacity: 0.2;
+            filter: grayscale(1) brightness(0.5);
+            transform: scale(0.8) translateY(10px);
+        }
+
+        /* Combo Multiplier - REPOSITIONED TO BOTTOM RIGHT */
+        #combo-display {
+            position: absolute;
+            bottom: 24px;
+            right: 24px;
+            font-family: var(--font-tech);
+            font-size: 42px;
+            font-weight: 900;
+            color: #fff;
+            text-shadow: 0 0 15px currentColor;
+            opacity: 1;
+            transition: opacity 0.3s;
+            pointer-events: none;
+        }
+
+        .combo-pop {
+            animation: combo-pop-anim 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        @keyframes combo-pop-anim {
+            0% {
+                transform: scale(0.5);
+                opacity: 0;
+            }
+
+            70% {
+                transform: scale(1.2);
+                opacity: 1;
+            }
+
+            100% {
+                transform: scale(1);
+                opacity: 1;
+            }
+        }
+
+        /* VPN Banner */
+        #vpn-banner {
+            position: absolute;
+            top: 60px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 90%;
+            background: rgba(0, 0, 0, 0.85);
+            border: 1.5px solid var(--neon-blue) !important;
+            border-radius: 14px !important;
+            padding: 10px;
+            text-align: center;
+            color: var(--neon-blue);
+            font-weight: bold;
+            z-index: 25;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 0 20px rgba(0, 229, 255, 0.3);
+        }
+
+        #vpn-timer-bar-wrap {
+            width: 100%;
+            height: 8px;
+            background: #333;
+            margin-top: 8px;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        #vpn-timer-bar {
+            width: 100%;
+            height: 100%;
+            background: var(--neon-blue);
+            transition: width 0.1s linear;
+        }
+
+        #vpn-expiring-msg {
+            position: absolute;
+            top: 130px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: var(--gold);
+            font-weight: bold;
+            font-size: 18px;
+            text-shadow: 1px 1px 4px #000;
+            z-index: 25;
+            font-family: var(--font-tech);
+        }
+
+        #call-result-banner {
+            position: absolute;
+            top: 80px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 26px;
+            font-weight: 900;
+            letter-spacing: 3px;
+            white-space: nowrap;
+            text-shadow: 0 0 12px currentColor;
+            pointer-events: none;
+            z-index: 30;
+            font-family: var(--font-tech);
+        }
+
+        /* ── VIGNETTE ── */
+        #vignette {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            z-index: 10;
+            background: radial-gradient(circle, transparent 30%, rgba(10, 0, 26, 0.4) 100%);
+            transition: all 0.4s ease;
+        }
+
+        .vignette-danger {
+            background: radial-gradient(circle, transparent 20%, rgba(255, 0, 50, 0.5) 100%) !important;
+            animation: vignette-pulse 1s infinite alternate;
+        }
+
+        .vignette-vpn {
+            background: radial-gradient(circle, transparent 40%, rgba(0, 229, 255, 0.1) 100%) !important;
+            box-shadow: inset 0 0 100px rgba(0, 229, 255, 0.3);
+        }
+
+        @keyframes vignette-pulse {
+            from {
+                opacity: 0.6;
+            }
+
+            to {
+                opacity: 1;
+            }
+        }
+
+        .screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            gap: 24px;
+            background: radial-gradient(circle at center, rgba(15, 0, 40, 0.9) 0%, var(--bg-dark) 100%);
+            z-index: 20;
+            padding: 30px;
+            text-align: center;
+            transition: opacity 0.5s, transform 0.5s;
+        }
+
+        .hidden {
+            display: none !important;
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .glass-card {
+            background: var(--glass);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 24px;
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+            position: relative;
+            overflow: hidden;
+            width: 90%;
+            max-width: 400px;
+        }
+
+        .glass-card::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 50%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.05), transparent);
+            transform: skewX(-25deg);
+            animation: shine 4s infinite;
+        }
+
+        @keyframes shine {
+            0% {
+                left: -100%;
+            }
+
+            20% {
+                left: 200%;
+            }
+
+            100% {
+                left: 200%;
+            }
+        }
+
+        /* Buttons */
+        button {
+            border: none;
+            cursor: pointer;
+            font-family: var(--font-tech);
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        .btn-primary {
+            background: var(--neon-blue);
+            color: #000;
+            font-size: 18px;
+            padding: 16px 40px;
+            border-radius: 4px;
+            box-shadow: 0 0 20px rgba(0, 229, 255, 0.4);
+            margin-top: 20px;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-3px) scale(1.02);
+            box-shadow: 0 0 35px var(--neon-blue);
+            background: #fff;
+        }
+
+        .btn-cta {
+            background: var(--neon-pink);
+            color: #fff;
+            font-size: 14px;
+            padding: 14px 28px;
+            border-radius: 4px;
+            box-shadow: 0 0 15px rgba(240, 62, 159, 0.3);
+        }
+
+        .btn-cta:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 0 25px var(--neon-pink);
+        }
+
+        .btn-ghost {
+            background: transparent;
+            color: rgba(255, 255, 255, 0.6);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            font-size: 12px;
+            padding: 10px 20px;
+            border-radius: 4px;
+            margin-top: 10px;
+        }
+
+        .btn-ghost:hover {
+            color: #fff;
+            border-color: #fff;
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        /* Splash */
+        .splash-logo {
+            font-family: var(--font-tech);
+            font-size: 64px;
+            font-weight: 900;
+            color: #fff;
+            text-shadow: 0 0 20px var(--neon-blue), 0 0 40px var(--neon-blue);
+            margin-bottom: 0px;
+            animation: logo-flicker 5s infinite;
+        }
+
+        @keyframes logo-flicker {
+
+            0%,
+            90%,
+            100% {
+                opacity: 1;
+                text-shadow: 0 0 20px var(--neon-blue);
+            }
+
+            92%,
+            96% {
+                opacity: 0.8;
+                text-shadow: none;
+            }
+        }
+
+        .splash-subtitle {
+            font-size: 14px;
+            color: var(--neon-green);
+            letter-spacing: 3px;
+            margin-top: -10px;
+            text-transform: uppercase;
+        }
+
+        .feature-pills {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 10px;
+            margin: 10px 0;
+        }
+
+        .pill {
+            background: rgba(0, 229, 255, 0.08);
+            border: 1px solid var(--border);
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 11px;
+            color: var(--neon-blue);
+            font-weight: 700;
+            white-space: nowrap;
+        }
+
+        .splash-controls {
+            font-family: var(--font-main);
+            font-size: 14px;
+            color: rgba(255, 255, 255, 0.6);
+            line-height: 1.6;
+        }
+
+        #phishing-overlay {
+            z-index: 35;
+        }
+
+        .phish-hook-icon {
+            font-size: 64px;
+            filter: drop-shadow(0 0 15px #ff2244);
+            animation: hook-swing 2s infinite ease-in-out;
+        }
+
+        @keyframes hook-swing {
+
+            0%,
+            100% {
+                transform: rotate(-8deg);
+            }
+
+            50% {
+                transform: rotate(8deg);
+            }
+        }
+
+        .phish-title {
+            font-family: var(--font-tech);
+            color: #ff2244;
+            font-size: 20px;
+            margin: 15px 0;
+            text-shadow: 0 0 10px rgba(255, 34, 68, 0.5);
+        }
+
+        .phish-email-card {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            padding: 20px;
+            text-align: left;
+            margin-bottom: 20px;
+            font-size: 14px;
+        }
+
+        .phish-email-from {
+            font-size: 11px;
+            color: rgba(255, 255, 255, 0.35);
+            font-family: var(--font-tech);
+            margin-bottom: 4px;
+        }
+
+        .phish-email-subject {
+            font-family: var(--font-main);
+            font-size: 15px;
+            font-weight: 700;
+            color: #fff;
+            margin-bottom: 6px;
+        }
+
+        .phish-email-body {
+            font-size: 12px;
+            color: rgba(255, 255, 255, 0.6);
+            font-family: var(--font-main);
+            line-height: 1.5;
+        }
+
+        .phish-cta-link {
+            font-size: 12px;
+            color: var(--neon-blue);
+            text-decoration: underline;
+            font-family: var(--font-main);
+            margin-top: 6px;
+            display: block;
+        }
+
+        .phish-warning {
+            background: rgba(255, 34, 68, 0.1);
+            border: 1px solid rgba(255, 34, 68, 0.3);
+            border-radius: 4px;
+            padding: 8px 18px;
+            margin-bottom: 20px;
+            font-size: 12px;
+            color: #ff4466;
+            font-weight: 700;
+            font-family: var(--font-tech);
+            text-transform: uppercase;
+        }
+
+        .phish-timer-wrap {
+            width: 90%;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 2px;
+            overflow: hidden;
+            margin-bottom: 30px;
+        }
+
+        #phish-timer-bar {
+            height: 100%;
+            width: 100%;
+            background: #ff2244;
+            box-shadow: 0 0 10px #ff2244;
+            transition: width 0.1s linear;
+        }
+
+        .btn-phish-delete {
+            background: #ff2244;
+            color: #fff;
+            font-family: var(--font-tech);
+            font-size: 18px;
+            padding: 16px 48px;
+            border-radius: 4px;
+            box-shadow: 0 0 20px rgba(255, 34, 68, 0.4);
+            transition: all 0.2s;
+        }
+
+        .btn-phish-delete:hover {
+            background: #fff;
+            color: #ff2244;
+            box-shadow: 0 0 35px #ff2244;
+            transform: translateY(-2px);
+        }
+
+        .phish-hint {
+            color: rgba(255, 255, 255, 0.3);
+            font-size: 12px;
+            margin-top: 15px;
+            font-family: var(--font-main);
+        }
+
+
+        /* ── CRACK CANVAS ── */
+        #crack-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 25;
+            display: none;
+        }
+    </style>
+
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/",
+            "lil-gui": "https://cdn.jsdelivr.net/npm/lil-gui@0.19.1/dist/lil-gui.esm.js"
+        }
+    }
+    </script>
+    <!-- #endregion HEAD -->
+</head>
+
+<body>
+    <!-- #region BODY: Game container and UI -->
+    <div id="game-container">
+        <!-- 3D Canvas goes here, injected by Three -->
+        <div id="error-log"
+            style="position:absolute; top:10px; left:10px; color:red; font-size:12px; z-index:9999; background:white; pointer-events:none;">
+        </div>
+
+        <!-- #region HUD: Game stats, shields, and overlay -->
+        <!-- HUD Overlay -->
+        <div id="hud">
+            <div class="header">
+                <div id="timer-display">00:00</div>
+                <div class="phase-name" id="phase-display">PHASE 1</div>
+                <div id="score-container" style="text-align: right;">
+                    <div id="current-score" style="color: #FFD740; font-weight: bold;">0</div>
+                    <div id="best-score" style="font-size: 14px; color: #aaa;">PB: 0</div>
+                </div>
+            </div>
+            <div class="shields" id="shields-container">
+                <div class="shield">&#x1F6E1;&#xFE0F;</div>
+                <div class="shield">&#x1F6E1;&#xFE0F;</div>
+                <div class="shield">&#x1F6E1;&#xFE0F;</div>
+            </div>
+            <div id="combo-display" class="hidden">x1</div>
+
+            <div id="vpn-banner" class="hidden">
+                &#x1F6E1;&#xFE0F; PARTYHAT VPN — ACTIVATED
+                <div id="vpn-timer-bar-wrap">
+                    <div id="vpn-timer-bar"></div>
+                </div>
+            </div>
+
+            <div id="vpn-expiring-msg" class="hidden">
+                &#x26A0;&#xFE0F; VPN EXPIRING...
+            </div>
+
+            <div id="call-result-banner" class="hidden"></div>
+        </div>
+        <!-- #endregion HUD -->
+
+        <div id="flash-overlay"></div>
+        <div id="vignette"></div>
+
+        <!-- #region SCREENS: All UI screens (splash, game over, win, phishing popup) -->
+        <!-- Screens -->
+
+        <!-- #region SPLASH -->
+        <!-- SPLASH -->
+        <div id="splash-screen" class="screen">
+            <div class="splash-logo">PARTYHAT</div>
+            <div class="splash-subtitle">Dodge the Digital S.T.D.s</div>
+            <div class="feature-pills">
+                <span class="pill">&#x1F6E1; 3 STD Shields</span>
+                <span class="pill">&#x26A1; VPN Power-Up</span>
+                <span class="pill">&#x1F4F5; Scam Blocker</span>
+            </div>
+            <div class="splash-controls">Tap left / right to dodge<br>Survive 60 seconds</div>
+            <button id="btn-start" class="btn-primary btn-start-pulse">START GAME</button>
+        </div>
+        <!-- #endregion SPLASH -->
+
+        <!-- #region GAME_OVER -->
+        <!-- GAME OVER -->
+        <div id="gameover-screen" class="screen hidden">
+            <div class="go-title">CAUGHT! &#x1F9A0;</div>
+            <div id="gameover-subhead" class="go-subhead">Unprotected browsing is no party.</div>
+            <div class="glass-card" style="margin-bottom:22px;">
+                <div class="go-stat-row">
+                    <span class="go-stat-label">SCORE</span>
+                    <span id="go-score" class="go-stat-value" style="color:var(--gold);">0</span>
+                </div>
+                <div class="go-stat-row">
+                    <span class="go-stat-label">CAUGHT BY</span>
+                    <span id="go-killer" class="go-stat-value" style="color:var(--pink); font-size:16px;">Virus</span>
+                </div>
+            </div>
+            <button id="btn-retry-fail" class="btn-primary" style="margin-bottom:12px;">&#x1F504; TRY AGAIN</button>
+            <button onclick="window.open('https://getpartyhat.com', '_blank')" class="btn-cta">&#x1F6E1;&#xFE0F; GET
+                PARTYHAT &mdash; Stay Protected</button>
+        </div>
+        <!-- #endregion GAME_OVER -->
+
+        <!-- #region WIN -->
+        <!-- WIN -->
+        <div id="win-screen" class="screen hidden">
+            <div class="win-title">YOU SURVIVED! &#x2728;</div>
+            <div class="win-subtitle">Clean device. Clean conscience.<br>Real life isn't this easy.</div>
+            <div class="rank-badge" id="win-rank">S</div>
+            <div class="rank-label">RANK</div>
+            <div class="glass-card" style="margin-bottom:22px; padding:14px 24px;">
+                <div class="win-score-label">FINAL SCORE</div>
+                <div id="win-score" class="win-score-num">0</div>
+            </div>
+            <button onclick="window.open('https://getpartyhat.com', '_blank')" class="btn-cta"
+                style="margin-bottom:12px;">🛡️ DOWNLOAD PARTYHAT</button>
+            <button id="btn-retry-win" class="btn-ghost">&#x21A9; Play Again</button>
+        </div>
+
+        <canvas id="crack-canvas"></canvas>
+        <!-- #endregion WIN -->
+
+        <!-- #region PHISHING_POPUP -->
+        <!-- PHISHING POPUP -->
+        <div id="phishing-overlay" class="screen hidden">
+            <div class="phish-hook-icon">🪝</div>
+            <div class="phish-title">⚠ PHISHING ATTEMPT DETECTED</div>
+            <div class="phish-email-card">
+                <div class="phish-email-from">From: security-noreply@g00gle-verify.xyz</div>
+                <div class="phish-email-subject">🔒 Your account will be suspended!</div>
+                <div class="phish-email-body">
+                    We detected unusual activity. Verify your account immediately or it will be permanently deleted
+                    within 24 hours.
+                    <span class="phish-cta-link">http://g00gle-verify.xyz/confirm-now</span>
+                </div>
+            </div>
+            <div class="phish-warning">🪝 DON'T TAKE THE BAIT — DELETE IT NOW!</div>
+            <div class="phish-timer-wrap">
+                <div id="phish-timer-bar"></div>
+            </div>
+            <button id="btn-phish-delete" class="btn-phish-delete">🗑 DELETE EMAIL</button>
+            <div class="phish-hint">Tap Delete before the hook catches you</div>
+        </div>
+        <!-- #endregion PHISHING_POPUP -->
+
+        <!-- #endregion SCREENS -->
+    </div>
+    <!-- #endregion BODY -->
+
+    <!-- #region MAIN_SCRIPT: Core game logic, Three.js setup, and game state -->
+    <!-- MAIN GAME SCRIPT -->
+    <script type="module">
+        import * as THREE from 'three';
+        import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+        import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
+        import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+        import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+        import { OutlinePass } from 'three/addons/postprocessing/OutlinePass.js';
+        import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+        import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+
+        /*
+        ╔══════════════════════════════════════════════════════════════════╗
+        ║                    PARTYHAT RUNNER — CODE MAP                    ║
+        ║                                                                  ║
+        ║  Use Ctrl+G (Go to Line) to navigate via line numbers below:     ║
+        ╠══════════════════════════════════════════════════════════════════╣
+        ║  § 0  UTILITIES                      L800                        ║
+        ║  § 1  CONSTANTS & CONFIG             L810                        ║
+        ║  § 2  ASSET PATHS                    L848                        ║
+        ║  § 3  STATE MACHINE                  L870                        ║
+        ║                                                                  ║
+        ║  § 4  CORE SYSTEMS                                              ║
+        ║       4.1 VPN System                 L910                        ║
+        ║       4.2 Phishing Hook System       L1099                       ║
+        ║       4.3 Score System               L1282                       ║
+        ║       4.4 Audio Manager              L1345                       ║
+        ║       4.5 Sprite Animator            L1699                       ║
+        ║       4.6 Phase System               L1726                       ║
+        ║       4.7 Speed Lines                L1758                       ║
+        ║       4.8 Procedural Sky             L1825                       ║
+        ║                                                                  ║
+        ║  § 5  THREE.JS SCENE                 L2014                       ║
+        ║  § 6  CORRIDOR GEOMETRY              L2141                       ║
+        ║  § 7  PLAYER                        L2408                        ║
+        ║  § 8  ENEMY SYSTEM                   L2738                       ║
+        ║  § 9  COLLISION                      L3010                       ║
+        ║  § 10 HUD                           L3047                        ║
+        ║  § 11 INPUT HANDLERS                 L3108                       ║
+        ║                                                                  ║
+        ║  § 12 EFFECTS                                                    ║
+        ║       12.1 Confetti Pool             L3140                       ║
+        ║       12.2 Goo Explosion Pool        L3238                       ║
+        ║                                                                  ║
+        ║  § 13 GAME LOOP                      L3471                       ║
+        ║  § 14 SCREEN HANDLERS                L3656                       ║
+        ║                                                                  ║
+        ║  § 15 ENVIRONMENT                                                ║
+        ║       15.1 Wall Signs                L3730                       ║
+        ║       15.2 Crowd System              L3769                       ║
+        ║       15.3 Finish Line               L4025                       ║
+        ║                                                                  ║
+        ║  § 16 DEV PANEL                      L4218                       ║
+        ║  § 17 INITIALIZATION                 L4264                       ║
+        ╚══════════════════════════════════════════════════════════════════╝
+        */
+
+        const DEV_MODE = true;
+        let tunnelTiles = [];
+        let GUI = null; // Loaded conditionally if DEV_MODE is true
+
+        // ─── § 0  UTILITIES ────────────────────────────────────────────────
+        const lerp = (a, b, t) => a + (b - a) * t;
+        const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
+        const mapRange = (v, a1, a2, b1, b2) => b1 + ((v - a1) / (a2 - a1)) * (b2 - b1);
+
+        // ─── § 1  CONSTANTS & CONFIG ──────────────────────────────────────
+        const CONFIG = {
+            gameDuration: 60,
+            spawnEnemies: true, // DEV TOGGLE
+            infiniteTime: false, // DEV TOGGLE
+            startShields: 3,
+            lanePositions: [-1.4, 0, 1.4],
+            laneChangeTime: 0.18,
+            baseSpeed: 0.05,       // Starting speed — ramps to 0.4 over 60s via progression curve
+            enemySpawnZ: -40,
+            enemyDespawnZ: 12,
+            poolSize: 20,
+            virusBaseScale: 1,
+            // Spawn gap: minimum Z distance between consecutive enemies at spawn point
+            // Stays constant regardless of speed — ensures consistent visual density
+            spawnGap: 10,          // world units between spawns (feels like ~10u apart at any speed)
+
+            // Phase definitions: only control enemy types, lane-change chance, and max simultaneous
+            // Speed and spawn rate are derived from gameTimer, not phases
+            phases: [
+                { start: 0, end: 15, maxSim: 2, laneChangePct: 0.0, types: ['VIRUS'] },
+                { start: 15, end: 30, maxSim: 3, laneChangePct: 0.15, types: ['VIRUS'] },
+                { start: 30, end: 38, maxSim: 4, laneChangePct: 0.25, types: ['VIRUS'] },
+                { start: 38, end: 46, maxSim: 6, laneChangePct: 0.40, types: ['VIRUS'] },
+                { start: 46, end: 55, maxSim: 7, laneChangePct: 0.55, types: ['VIRUS'] },
+                { start: 55, end: 60, maxSim: 4, laneChangePct: 0.30, types: ['VIRUS'] },
+            ],
+
+            vpnSpawnTime: 38,
+            vpnDuration: 8,
+            comboTiers: [
+                { min: 0, max: 3, mult: 1, pts: 10, color: '#ffffff' },
+                { min: 4, max: 6, mult: 1.5, pts: 20, color: '#F5A623' },
+                { min: 7, max: 9, mult: 2, pts: 30, color: '#F03E9F' },
+                { min: 10, max: 99, mult: 3, pts: 50, color: '#FFD740' },
+            ],
+        };
+
+        // ─── § 2  LOCAL ASSET PATHS (No Base64 for Dev) ────────────────────
+        // Using local texture paths as explicitly requested by user
+        const PLAYER_B64 = 'assets/sprites/player.png';
+        const VIRUS_B64 = 'assets/sprites/virus.png';
+        const PHISH_B64 = 'assets/sprites/phishing.png';
+        const VPN_B64 = 'assets/sprites/vpn.png';
+        const SIDEWALK_B64 = 'assets/sprites/Sidewalk.png';
+        const SIDEWALK_NORMAL_B64 = 'assets/sprites/SidewalkNormalMap.png';
+        const FLOOR_B64 = 'assets/sprites/floor.png';
+        const FLOOR_NORMAL_B64 = 'assets/sprites/FloorNormalMap.png';
+        const FLOOR_DISP_B64 = 'assets/sprites/FloorTextureHeight.png';
+        const FLOOR_EDGE_B64 = 'assets/sprites/FloorTextureEdge.png';
+        const FLOOR_SMOOTH_B64 = 'assets/sprites/FloorTextureSmoothness.png';
+        const CEILING_B64 = 'assets/sprites/Ceiling.png';
+        const CEILING_NORMAL_B64 = 'assets/sprites/CeilingNormalMap.png';
+        const CEILING_SMOOTH_B64 = 'assets/sprites/CeilingTextureSmoothness.png';
+        const PILLAR_B64 = 'assets/sprites/Pillar.png';
+        const PILLAR_NORMAL_B64 = 'assets/sprites/PillarNormalMap.png';
+        const CARD_PEOPLE_B64 = 'assets/sprites/card_people.png';
+        const PLAYER_MODEL_B64 = 'assets/3dmodels/compressed.glb';
+        const VIRUS_MODEL_B64 = 'assets/3dmodels/virus.glb';
+
+        // ─── § 3  STATE MACHINE ───────────────────────────────────────────
+        const STATES = {
+            SPLASH: 'SPLASH',
+            PLAYING: 'PLAYING',
+            HIT_STUN: 'HIT_STUN',
+            VPN_SEQ: 'VPN_SEQ',
+            PHISHING_HOOK: 'PHISHING_HOOK',
+            GAME_OVER: 'GAME_OVER',
+            WIN: 'WIN',
+            PAUSE: 'PAUSE',
+        };
+
+        const GameState = {
+            current: STATES.SPLASH,
+            previous: null,
+
+            setState(newState) {
+                console.log(`[State] ${this.current} → ${newState}`);
+                this.previous = this.current;
+                this.current = newState;
+                this._onEnter(newState);
+            },
+
+            _onEnter(state) {
+                switch (state) {
+                    case STATES.SPLASH: onEnterSplash(); break;
+                    case STATES.PLAYING: onEnterPlaying(); break;
+                    case STATES.HIT_STUN: onEnterHitStun(); break;
+                    case STATES.GAME_OVER: onEnterGameOver(); break;
+                    case STATES.WIN: onEnterWin(); break;
+                    case STATES.VPN_SEQ: HUD.showScreen(STATES.VPN_SEQ); break;
+                    case STATES.PHISHING_HOOK: HUD.showScreen(STATES.PHISHING_HOOK); break;
+                    case STATES.PAUSE: break;
+                }
+            },
+
+            is(state) { return this.current === state; },
+            isPlaying() { return this.current === STATES.PLAYING || this.current === STATES.HIT_STUN; },
+        };
+
+        // ─── § 4  CORE SYSTEMS ────────────────────────────────────────────
+
+        // ─── § 4.1  VPN SYSTEM ────────────────────────────────────────────
+        const VPNSystem = {
+            active: false,
+            itemSprite: null,
+            glowSprite: null,
+            itemActive: false,
+            hasSpawned: false,
+            timer: 0,
+            duration: CONFIG.vpnDuration || 8,
+            light: null,
+            // Electric arc sprites
+
+            init() {
+                const tex = new THREE.TextureLoader().load(VPN_B64);
+                const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, alphaTest: 0.01 });
+                this.itemSprite = new THREE.Sprite(mat);
+                this.itemSprite.name = 'VPNPickup';
+                this.itemSprite.scale.set(2.0, 2.0, 1);
+                this.itemSprite.visible = false;
+                this.itemSprite.renderOrder = 2;
+                scene.add(this.itemSprite);
+
+                // Blue glow halo behind the hat
+                const glowMat = new THREE.SpriteMaterial({
+                    map: tex,
+                    transparent: true,
+                    color: 0x0077ff,
+                    blending: THREE.AdditiveBlending,
+                    depthWrite: false,
+                    opacity: 0.6,
+                });
+                this.glowSprite = new THREE.Sprite(glowMat);
+                this.glowSprite.scale.set(3.2, 3.2, 1);
+                this.glowSprite.visible = false;
+                this.glowSprite.renderOrder = 1;
+                scene.add(this.glowSprite);
+
+                this.light = new THREE.PointLight(0x0055ff, 0, 10);
+                this.light.name = 'VPNLight';
+                scene.add(this.light);
+
+            },
+            update(delta) {
+                if (!Player.group) return; // Wait for player model to load
+
+                if (GameState.isPlaying()) {
+                    if (gameTimer >= CONFIG.vpnSpawnTime && !this.hasSpawned) {
+                        this.hasSpawned = true;
+                        this.itemActive = true;
+                        this.itemSprite.position.set(CONFIG.lanePositions[1], 1.0, CONFIG.enemySpawnZ);
+                        this.itemSprite.visible = true;
+                        if (this.glowSprite) {
+                            this.glowSprite.position.copy(this.itemSprite.position);
+                            this.glowSprite.visible = true;
+                        }
+                    }
+
+                    if (this.itemActive) {
+                        this.itemSprite.position.z += getEnemySpeed() * 60 * delta;
+                        this.itemSprite.position.y = 1.0 + Math.sin(gameTimer * 5) * 0.3;
+
+                        // Sync glow + pulsing opacity
+                        if (this.glowSprite) {
+                            this.glowSprite.position.copy(this.itemSprite.position);
+                            this.glowSprite.position.z += 0.05;
+                            const pulse = 0.4 + Math.sin(gameTimer * 6) * 0.25;
+                            this.glowSprite.material.opacity = pulse;
+                            const gs = 3.0 + Math.sin(gameTimer * 4) * 0.3;
+                            this.glowSprite.scale.set(gs, gs, 1);
+                        }
+
+                        // Light follows item
+                        this.light.intensity = 1.5 + Math.sin(gameTimer * 6) * 0.5;
+                        this.light.position.copy(this.itemSprite.position);
+
+                        const dx = Math.abs(this.itemSprite.position.x - Player.group.position.x);
+                        const dz = Math.abs(this.itemSprite.position.z - Player.group.position.z);
+                        if (dx < 1.0 && dz < 1.0) {
+                            this.collect();
+                        }
+                        if (this.itemSprite.position.z >= CONFIG.enemyDespawnZ) {
+                            this.itemActive = false;
+                            this.itemSprite.visible = false;
+                            if (this.glowSprite) this.glowSprite.visible = false;
+                            this.light.intensity = 0;
+                        }
+                    }
+
+                    if (this.active) {
+                        this.timer -= delta;
+                        document.getElementById('vpn-timer-bar').style.width = `${(this.timer / this.duration) * 100}%`;
+                        this.light.position.copy(Player.group.position);
+                        this.light.intensity = 3.0 + Math.sin(gameTimer * 8) * 1.0;
+
+                        // Advance energy sweep uniform
+                        if (Player.group && Player.group._vpnUniforms) {
+                            Player.group._vpnUniforms.uVpnTime.value += delta;
+                        }
+
+                        if (this.timer <= 2.0 && this.timer > 0) {
+                            document.getElementById('vpn-expiring-msg').classList.remove('hidden');
+                        }
+
+                        if (this.timer <= 0) {
+                            this.deactivate();
+                        }
+                    }
+                }
+
+                if (GameState.is(STATES.VPN_SEQ)) {
+                    this.timer += delta;
+                    // Flash effect
+                    if (this.timer > 0.1 && this.timer < 0.15) {
+                        const flash = document.getElementById('flash-overlay');
+                        flash.style.opacity = '1';
+                        setTimeout(() => flash.style.opacity = '0', 50);
+                    }
+                    if (this.timer > 0.1) {
+                        this.light.intensity = 6;
+                    }
+                    if (this.timer > 1.5) {
+                        this.activate();
+                    }
+                }
+            },
+            collect() {
+                this.itemActive = false;
+                this.itemSprite.visible = false;
+                if (this.glowSprite) this.glowSprite.visible = false;
+                this.light.intensity = 0;
+                AudioManager.playPickupVPN();
+                GameState.setState(STATES.VPN_SEQ);
+                this.timer = 0;
+            },
+            activate() {
+                GameState.setState(STATES.PLAYING);
+                Player.vpnActive = true;
+                this.active = true;
+                this.timer = this.duration;
+
+                // Start energy sweep shader
+                if (Player.group && Player.group._vpnUniforms) {
+                    Player.group._vpnUniforms.uVpnTime.value = 0.0;
+                }
+                document.getElementById('vpn-banner').classList.remove('hidden');
+                document.getElementById('vignette').classList.add('vignette-vpn');
+                AudioManager.playVPNMusic();
+                PartyCrowd.trigger();
+            },
+            deactivate() {
+                this.active = false;
+                Player.vpnActive = false;
+                this.light.intensity = 0;
+
+                // Stop energy sweep shader
+                if (Player.group && Player.group._vpnUniforms) {
+                    Player.group._vpnUniforms.uVpnTime.value = -1.0;
+                }
+                document.getElementById('vpn-banner').classList.add('hidden');
+                document.getElementById('vpn-expiring-msg').classList.add('hidden');
+                document.getElementById('vignette').classList.remove('vignette-vpn');
+
+                AudioManager.stopVPNMusic();
+                PartyCrowd.fadeOut();
+            },
+            onEnemyContact(e) {
+                ScoreSystem.onVPNKill();
+                AudioManager.playKill();
+                const ep = (e.type === 'VIRUS') ? e.mesh.position : e.sprite.position;
+                createGooExplosion(ep.x, ep.y + 0.5, ep.z);
+            },
+            reset() {
+                this.active = false;
+                this.hasSpawned = false;
+                this.itemActive = false;
+                if (this.itemSprite) this.itemSprite.visible = false;
+                if (this.glowSprite) this.glowSprite.visible = false;
+                if (this.light) this.light.intensity = 0;
+                if (Player.group && Player.group._vpnUniforms) {
+                    Player.group._vpnUniforms.uVpnTime.value = -1.0;
+                }
+                Player.vpnActive = false;
+                document.getElementById('vpn-banner').classList.add('hidden');
+                document.getElementById('vpn-expiring-msg').classList.add('hidden');
+                document.getElementById('vignette').classList.remove('vignette-vpn');
+            }
+        };
+
+
+        // ─── § 4.2  PHISHING HOOK SYSTEM ──────────────────────────────────
+        const PhishingHookSystem = {
+            hooks: [],           // active hook objects in scene
+            spawnTimer: 0,
+            spawnInterval: 10,   // seconds between hooks
+            hookTexture: null,
+            glowTexture: null,
+            active: false,       // popup currently open
+            timer: 0,
+            POPUP_TIME: 3.5,     // seconds to delete the email
+            overlayEl: null,
+            timerBarEl: null,
+            _initialized: false,
+
+            init() {
+                this.overlayEl = document.getElementById('phishing-overlay');
+                this.timerBarEl = document.getElementById('phish-timer-bar');
+
+                // Load phishing.png and strip black background via canvas chroma-key
+                const img = new Image();
+                img.crossOrigin = 'anonymous';
+                img.onload = () => {
+                    const cv = document.createElement('canvas');
+                    cv.width = img.width; cv.height = img.height;
+                    const ctx = cv.getContext('2d');
+                    ctx.drawImage(img, 0, 0);
+                    const data = ctx.getImageData(0, 0, cv.width, cv.height);
+                    const d = data.data;
+                    // Remove near-black pixels (R<40 && G<40 && B<40)
+                    for (let i = 0; i < d.length; i += 4) {
+                        if (d[i] < 40 && d[i + 1] < 40 && d[i + 2] < 40) {
+                            d[i + 3] = 0;
+                        }
+                    }
+                    ctx.putImageData(data, 0, 0);
+                    this.hookTexture = new THREE.CanvasTexture(cv);
+                    this.hookTexture.colorSpace = THREE.SRGBColorSpace;
+
+                };
+                img.src = 'assets/sprites/phishing.png';
+
+                document.getElementById('btn-phish-delete').addEventListener('click', () => {
+                    this.onDelete();
+                });
+
+                this._initialized = true;
+            },
+
+            _spawnHook() {
+                if (!this._initialized || !this.hookTexture) return;
+                const laneIndex = Math.floor(Math.random() * 3);
+                const posX = CONFIG.lanePositions[laneIndex];
+
+                // Main sprite — chroma-keyed, NormalBlending, white tint to show original colors
+                const mat = new THREE.SpriteMaterial({
+                    map: this.hookTexture,
+                    transparent: true,
+                    alphaTest: 0.05,
+                    color: 0xffffff,
+                    depthWrite: false,
+                    blending: THREE.NormalBlending,
+                });
+                const hook = new THREE.Sprite(mat);
+                hook.scale.set(1.6, 2.8, 1);
+                hook.position.set(posX, 5.1, CONFIG.enemySpawnZ);
+                hook.userData.laneIndex = laneIndex;
+                hook.userData.triggered = false;
+                hook.renderOrder = 2;
+
+                scene.add(hook);
+                this.hooks.push(hook);
+            },
+
+            update(delta) {
+                if (!GameState.isPlaying()) {
+                    // Tick popup timer even during PHISHING_HOOK state
+                    if (GameState.is(STATES.PHISHING_HOOK)) {
+                        this.timer -= delta;
+                        const pct = Math.max(0, this.timer / this.POPUP_TIME) * 100;
+                        this.timerBarEl.style.width = `${pct}%`;
+                        if (this.timer <= 0) this.onTimeout();
+                    }
+                    return;
+                }
+
+                // Spawn timer
+                this.spawnTimer += delta;
+                if (this.spawnTimer >= this.spawnInterval) {
+                    this.spawnTimer = 0;
+                    this._spawnHook();
+                }
+
+                // Move hooks toward player + check trigger
+                if (!Player || !Player.group) return;
+                const playerX = Player.group.position.x;
+                const playerZ = Player.group.position.z;
+                for (let i = this.hooks.length - 1; i >= 0; i--) {
+                    const hook = this.hooks[i];
+                    if (!hook) continue;
+                    const prevZ = hook.position.z;
+                    const dz = getEnemySpeed() * 60 * delta;
+                    hook.position.z += dz;
+                    // Gentle swing animation
+                    hook.rotation.z = Math.sin(Date.now() * 0.003 + i) * 0.15;
+
+                    // Trigger: hook crossed the player Z plane this frame (prevZ was behind, now at/past)
+                    // Using a generous window [playerZ-2 .. playerZ+2] to catch fast speeds
+                    const distZ = Math.abs(hook.position.z - playerZ);
+                    if (!hook.userData.triggered && distZ < 1.2) {
+                        const dx = Math.abs(hook.position.x - playerX);
+                        if (dx < 1.2) {
+                            hook.userData.triggered = true;
+                            if (Player.vpnActive) {
+                                this._destroyHook(i, true);
+                            } else {
+                                this._triggerPopup(i);
+                            }
+                            continue;
+                        }
+                    }
+
+                    if (hook.position.z > playerZ + 3) {
+                        this._destroyHook(i, false);
+                    }
+                }
+            },
+
+            _triggerPopup(hookIndex) {
+                this.timer = this.POPUP_TIME;
+                this.timerBarEl.style.width = '100%';
+                GameState.setState(STATES.PHISHING_HOOK);
+                if (this.hooks[hookIndex]) this.hooks[hookIndex].visible = false;
+            },
+
+            _destroyHook(index, withVPN) {
+                const hook = this.hooks[index];
+                if (withVPN) {
+                    ScoreSystem.onVPNKill();
+                    createConfetti(hook.position.x, hook.position.y, hook.position.z);
+                }
+                scene.remove(hook);
+                hook.material.dispose();
+                this.hooks.splice(index, 1);
+            },
+
+            onDelete() {
+                if (!GameState.is(STATES.PHISHING_HOOK)) return;
+                ScoreSystem.addPoints(75);
+                AudioManager.playPhishingDelete();
+                this._resumeGame();
+                showCallResultBanner('🗑 PHISH DELETED  +75', '#00ffcc');
+                // Remove any invisible/triggered hooks
+                for (let i = this.hooks.length - 1; i >= 0; i--) {
+                    if (this.hooks[i].userData.triggered) this._destroyHook(i, false);
+                }
+            },
+
+            onTimeout() {
+                this._resumeGame();
+                Player.takeDamage('PHISHING');
+                showCallResultBanner('🪝 HOOKED!  -1 SHIELD', '#ff3333');
+                for (let i = this.hooks.length - 1; i >= 0; i--) {
+                    if (this.hooks[i].userData.triggered) this._destroyHook(i, false);
+                }
+            },
+
+            _resumeGame() {
+                GameState.setState(STATES.PLAYING);
+            },
+
+            reset() {
+                // Clear all hooks from scene
+                for (const hook of this.hooks) {
+                    scene.remove(hook);
+                    hook.material.dispose();
+                }
+                this.hooks = [];
+                this.spawnTimer = 0;
+                this.timer = 0;
+                if (this.overlayEl) this.overlayEl.classList.add('hidden');
+            },
+        };
+
+        // ─── § 4.3  SCORE SYSTEM ──────────────────────────────────────────
+        const ScoreSystem = {
+            score: 0,
+            combo: 0,
+            best: localStorage.getItem('partyhat-pb') || 0,
+            scoreEl: document.getElementById('current-score'),
+            bestEl: document.getElementById('best-score'),
+            comboEl: document.getElementById('combo-display'),
+
+            init() {
+                this.bestEl.textContent = `PB: ${this.best}`;
+                this.updateDisplay();
+            },
+            addPoints(p) {
+                this.score += p;
+                this.updateDisplay();
+            },
+            incrementCombo() {
+                this.combo++;
+                let multData = CONFIG.comboTiers.find(t => this.combo >= t.min && this.combo <= t.max);
+                if (!multData) multData = CONFIG.comboTiers[CONFIG.comboTiers.length - 1]; // fallback to max
+
+                this.addPoints(multData.pts);
+                AudioManager.playComboUp();
+
+                this.comboEl.textContent = `x${this.combo}`;
+                this.comboEl.style.color = multData.color;
+                this.comboEl.classList.remove('hidden');
+
+                // CSS Pop animation
+                this.comboEl.classList.remove('combo-pop');
+                void this.comboEl.offsetWidth; // force reflow
+                this.comboEl.classList.add('combo-pop');
+            },
+            resetCombo() {
+                this.combo = 0;
+                this.comboEl.classList.add('hidden');
+            },
+            onEnemyDodged() {
+                this.incrementCombo();
+            },
+            onVPNKill() {
+                this.addPoints(25);
+            },
+            savePersonalBest() {
+                if (this.score > this.best) {
+                    this.best = this.score;
+                    localStorage.setItem('partyhat-pb', this.best);
+                    this.init(); // Update bestEl
+                }
+            },
+            reset() {
+                this.score = 0;
+                this.combo = 0;
+                this.updateDisplay();
+                this.comboEl.classList.add('hidden');
+            },
+            updateDisplay() {
+                this.scoreEl.textContent = this.score;
+            }
+        };
+
+        // ─── § 4.4  AUDIO MANAGER ─────────────────────────────────────────
+        const AudioManager = {
+            ctx: null,
+            // BGM state
+            _bgmBuffer: null,
+            _bgmMasterGain: null,   // master volume for BGM chain
+            _bgmSources: [],        // active AudioBufferSourceNodes
+            _bgmGains: [],          // per-source GainNodes for crossfade
+            _bgmRate: 1.0,          // current playback rate
+            _bgmPlaying: false,
+            _bgmScheduled: false,
+            _loopCrossfadeSec: 2.0, // seconds before end to start next loop
+            _bgmVolume: 0.05,       // background music master volume
+
+            init() {
+                // Context will be created on first user interaction (btn click)
+            },
+
+            _ensureCtx() {
+                if (!this.ctx) {
+                    this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+                    this._bgmMasterGain = this.ctx.createGain();
+                    this._bgmMasterGain.gain.value = this._bgmVolume;
+                    this._bgmMasterGain.connect(this.ctx.destination);
+                }
+                if (this.ctx.state === 'suspended') this.ctx.resume();
+            },
+
+            // Load the OGG file once; returns a promise
+            _loadBGM() {
+                if (this._bgmBuffer) return Promise.resolve(this._bgmBuffer);
+                return fetch('assets/Pixel_Prowler.ogg')
+                    .then(r => r.arrayBuffer())
+                    .then(ab => this.ctx.decodeAudioData(ab))
+                    .then(buf => { this._bgmBuffer = buf; return buf; });
+            },
+
+            // Start a single source at `when` (AudioContext time), with gain ramping
+            // from `gainFrom` to `gainTo` over `rampDuration` seconds.
+            // Returns { source, gainNode }
+            _startBGMSource(when, startOffset, gainFrom, gainTo, rampDuration) {
+                const source = this.ctx.createBufferSource();
+                source.buffer = this._bgmBuffer;
+                source.playbackRate.value = this._bgmRate;
+
+                const gainNode = this.ctx.createGain();
+                gainNode.gain.setValueAtTime(gainFrom, when);
+                if (rampDuration > 0) {
+                    gainNode.gain.linearRampToValueAtTime(gainTo, when + rampDuration);
+                } else {
+                    gainNode.gain.setValueAtTime(gainTo, when);
+                }
+
+                source.connect(gainNode);
+                gainNode.connect(this._bgmMasterGain);
+                source.start(when, startOffset);
+
+                this._bgmSources.push(source);
+                this._bgmGains.push(gainNode);
+
+                const duration = this._bgmBuffer.duration;
+                const crossAt = when + (duration - startOffset) - this._loopCrossfadeSec;
+
+                // Schedule fade-out of this source
+                gainNode.gain.setValueAtTime(gainTo, crossAt);
+                gainNode.gain.linearRampToValueAtTime(0.0001, crossAt + this._loopCrossfadeSec);
+
+                // Schedule next loop source at crossAt
+                const scheduleId = setTimeout(() => {
+                    if (!this._bgmPlaying) return;
+                    this._cleanupFinishedSources();
+                    this._startBGMSource(
+                        this.ctx.currentTime + this._loopCrossfadeSec,
+                        0,
+                        0.0001,
+                        1.0,
+                        this._loopCrossfadeSec
+                    );
+                }, Math.max(0, (crossAt - this.ctx.currentTime) * 1000));
+
+                source._scheduleId = scheduleId;
+                return { source, gainNode };
+            },
+
+            _cleanupFinishedSources() {
+                // Remove sources that have ended or are scheduled to end
+                this._bgmSources = this._bgmSources.filter((s, i) => {
+                    try { return true; } catch (e) { return false; }
+                });
+            },
+
+            _stopAllBGMSources(fadeSec = 0.3) {
+                const now = this.ctx ? this.ctx.currentTime : 0;
+                this._bgmSources.forEach((s, i) => {
+                    const g = this._bgmGains[i];
+                    if (g) {
+                        g.gain.cancelScheduledValues(now);
+                        g.gain.setValueAtTime(g.gain.value, now);
+                        g.gain.linearRampToValueAtTime(0.0001, now + fadeSec);
+                    }
+                    try { s.stop(now + fadeSec + 0.05); } catch (e) { }
+                    if (s._scheduleId !== undefined) clearTimeout(s._scheduleId);
+                });
+                this._bgmSources = [];
+                this._bgmGains = [];
+            },
+
+            startMusic() {
+                this._ensureCtx();
+                if (this._bgmPlaying) return;
+                this._bgmPlaying = true;
+                this._bgmRate = 1.0;
+                this._loadBGM().then(() => {
+                    if (!this._bgmPlaying) return;
+                    this._startBGMSource(this.ctx.currentTime, 0, 0.0001, 1.0, 0.5);
+                }).catch(e => console.warn('BGM load failed:', e));
+            },
+
+            stopMusic() {
+                this._bgmPlaying = false;
+                if (!this.ctx) return;
+                this._stopAllBGMSources(0.5);
+            },
+
+            playVPNMusic() {
+                // Ramp to higher playback rate (speed + pitch up slightly)
+                this._bgmRate = 1.12;
+                this._bgmSources.forEach(s => {
+                    s.playbackRate.cancelScheduledValues(this.ctx.currentTime);
+                    s.playbackRate.setValueAtTime(s.playbackRate.value, this.ctx.currentTime);
+                    s.playbackRate.linearRampToValueAtTime(1.12, this.ctx.currentTime + 0.4);
+                });
+                // Slight volume boost during VPN
+                if (this._bgmMasterGain) {
+                    this._bgmMasterGain.gain.cancelScheduledValues(this.ctx.currentTime);
+                    this._bgmMasterGain.gain.setValueAtTime(this._bgmMasterGain.gain.value, this.ctx.currentTime);
+                    this._bgmMasterGain.gain.linearRampToValueAtTime(this._bgmVolume * 1.2, this.ctx.currentTime + 0.4);
+                }
+            },
+
+            stopVPNMusic() {
+                // Ramp back to normal rate
+                this._bgmRate = 1.0;
+                this._bgmSources.forEach(s => {
+                    s.playbackRate.cancelScheduledValues(this.ctx.currentTime);
+                    s.playbackRate.setValueAtTime(s.playbackRate.value, this.ctx.currentTime);
+                    s.playbackRate.linearRampToValueAtTime(1.0, this.ctx.currentTime + 0.6);
+                });
+                if (this._bgmMasterGain) {
+                    this._bgmMasterGain.gain.cancelScheduledValues(this.ctx.currentTime);
+                    this._bgmMasterGain.gain.setValueAtTime(this._bgmMasterGain.gain.value, this.ctx.currentTime);
+                    this._bgmMasterGain.gain.linearRampToValueAtTime(this._bgmVolume, this.ctx.currentTime + 0.6);
+                }
+            },
+
+            // ── Low-level helpers ─────────────────────────────────────────────
+            _osc(freq, type, start, stop, gain, dest) {
+                const o = this.ctx.createOscillator();
+                const g = this.ctx.createGain();
+                o.type = type; o.frequency.value = freq;
+                g.gain.setValueAtTime(gain, start);
+                g.gain.exponentialRampToValueAtTime(0.0001, stop);
+                o.connect(g); g.connect(dest);
+                o.start(start); o.stop(stop);
+            },
+            _noise(duration, vol, dest) {
+                // White noise via small AudioBuffer
+                const bufSize = Math.ceil(this.ctx.sampleRate * duration);
+                const buf = this.ctx.createBuffer(1, bufSize, this.ctx.sampleRate);
+                const data = buf.getChannelData(0);
+                for (let i = 0; i < bufSize; i++) data[i] = Math.random() * 2 - 1;
+                const src = this.ctx.createBufferSource();
+                src.buffer = buf;
+                const g = this.ctx.createGain();
+                g.gain.setValueAtTime(vol, this.ctx.currentTime);
+                g.gain.exponentialRampToValueAtTime(0.0001, this.ctx.currentTime + duration);
+                src.connect(g); g.connect(dest);
+                src.start(); src.stop(this.ctx.currentTime + duration);
+            },
+            _bpf(freq, Q) {
+                // Bandpass filter node
+                const f = this.ctx.createBiquadFilter();
+                f.type = 'bandpass'; f.frequency.value = freq; f.Q.value = Q;
+                return f;
+            },
+
+            // ── Effect sounds ─────────────────────────────────────────────────
+
+            // Heavy impact thud — layered sub + filtered noise burst
+            playHit() {
+                if (!this.ctx) return;
+                const t = this.ctx.currentTime;
+                const dest = this.ctx.destination;
+
+                // Sub boom: pitch drops from 120 → 40 Hz
+                const sub = this.ctx.createOscillator();
+                const subGain = this.ctx.createGain();
+                sub.type = 'sine';
+                sub.frequency.setValueAtTime(120, t);
+                sub.frequency.exponentialRampToValueAtTime(35, t + 0.25);
+                subGain.gain.setValueAtTime(0.55, t);
+                subGain.gain.exponentialRampToValueAtTime(0.0001, t + 0.35);
+                sub.connect(subGain); subGain.connect(dest);
+                sub.start(t); sub.stop(t + 0.4);
+
+                // Mid body: distorted low rumble
+                const mid = this.ctx.createOscillator();
+                const midGain = this.ctx.createGain();
+                mid.type = 'sawtooth';
+                mid.frequency.setValueAtTime(80, t);
+                mid.frequency.exponentialRampToValueAtTime(30, t + 0.2);
+                midGain.gain.setValueAtTime(0.25, t);
+                midGain.gain.exponentialRampToValueAtTime(0.0001, t + 0.25);
+                mid.connect(midGain); midGain.connect(dest);
+                mid.start(t); mid.stop(t + 0.3);
+
+                // Noise crack on attack
+                const bpf = this._bpf(600, 1.5);
+                bpf.connect(dest);
+                this._noise(0.12, 0.18, bpf);
+            },
+
+            // Virus destroyed — electric zap + high pop
+            playKill() {
+                if (!this.ctx) return;
+                const t = this.ctx.currentTime;
+                const dest = this.ctx.destination;
+
+                // Rising zap sweep
+                const zap = this.ctx.createOscillator();
+                const zapGain = this.ctx.createGain();
+                zap.type = 'sawtooth';
+                zap.frequency.setValueAtTime(200, t);
+                zap.frequency.exponentialRampToValueAtTime(900, t + 0.08);
+                zapGain.gain.setValueAtTime(0.22, t);
+                zapGain.gain.exponentialRampToValueAtTime(0.0001, t + 0.12);
+                zap.connect(zapGain); zapGain.connect(dest);
+                zap.start(t); zap.stop(t + 0.15);
+
+                // Short noise burst (static crackle)
+                const bpf = this._bpf(3500, 2.0);
+                bpf.connect(dest);
+                this._noise(0.07, 0.15, bpf);
+
+                // Tail: high pop
+                this._osc(1200, 'sine', t + 0.06, t + 0.18, 0.12, dest);
+            },
+
+            // VPN item collected — ascending power-up chime
+            playPickupVPN() {
+                if (!this.ctx) return;
+                const t = this.ctx.currentTime;
+                const dest = this.ctx.destination;
+                const notes = [523.25, 659.25, 783.99, 1046.5]; // C5 E5 G5 C6
+                notes.forEach((freq, i) => {
+                    const at = t + i * 0.08;
+                    this._osc(freq, 'sine', at, at + 0.25, 0.18, dest);
+                    // Harmonics shimmer
+                    this._osc(freq * 2, 'sine', at, at + 0.15, 0.06, dest);
+                });
+                // Sparkle noise
+                const hpf = this.ctx.createBiquadFilter();
+                hpf.type = 'highpass'; hpf.frequency.value = 6000;
+                hpf.connect(dest);
+                this._noise(0.2, 0.08, hpf);
+            },
+
+            // Phishing email deleted — shredder/digital noise burst
+            playPhishingDelete() {
+                if (!this.ctx) return;
+                const t = this.ctx.currentTime;
+                const dest = this.ctx.destination;
+
+                // Descending tone
+                const osc = this.ctx.createOscillator();
+                const g = this.ctx.createGain();
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(800, t);
+                osc.frequency.exponentialRampToValueAtTime(150, t + 0.18);
+                g.gain.setValueAtTime(0.12, t);
+                g.gain.exponentialRampToValueAtTime(0.0001, t + 0.22);
+                osc.connect(g); g.connect(dest);
+                osc.start(t); osc.stop(t + 0.25);
+
+                // Noise shred
+                const bpf = this._bpf(1200, 1.2);
+                bpf.connect(dest);
+                this._noise(0.18, 0.14, bpf);
+            },
+
+            // Combo tick — rising pitched click
+            playComboUp() {
+                if (!this.ctx) return;
+                const freq = Math.min(400 + (ScoreSystem.combo * 40), 1400);
+                const t = this.ctx.currentTime;
+                this._osc(freq, 'sine', t, t + 0.12, 0.14, this.ctx.destination);
+                this._osc(freq * 1.5, 'sine', t, t + 0.07, 0.06, this.ctx.destination);
+            },
+
+            // Lane switch swish
+            playLaneChange() {
+                if (!this.ctx) return;
+                const t = this.ctx.currentTime;
+                const hpf = this.ctx.createBiquadFilter();
+                hpf.type = 'bandpass'; hpf.frequency.value = 800; hpf.Q.value = 0.8;
+                hpf.connect(this.ctx.destination);
+                this._noise(0.08, 0.1, hpf);
+                this._osc(220, 'sine', t, t + 0.08, 0.07, this.ctx.destination);
+            },
+
+            playDodge() {
+                if (!this.ctx) return;
+                this._osc(500, 'sine', this.ctx.currentTime, this.ctx.currentTime + 0.07, 0.07, this.ctx.destination);
+            },
+
+            // Game over — descending dissonant fall
+            playGameOver() {
+                if (!this.ctx) return;
+                const t = this.ctx.currentTime;
+                const dest = this.ctx.destination;
+                [220, 185, 155, 110].forEach((freq, i) => {
+                    const at = t + i * 0.12;
+                    this._osc(freq, 'sawtooth', at, at + 0.25, 0.18, dest);
+                });
+                // Low rumble
+                const sub = this.ctx.createOscillator();
+                const sg = this.ctx.createGain();
+                sub.type = 'sine'; sub.frequency.value = 55;
+                sg.gain.setValueAtTime(0.0, t + 0.3);
+                sg.gain.linearRampToValueAtTime(0.3, t + 0.5);
+                sg.gain.exponentialRampToValueAtTime(0.0001, t + 1.2);
+                sub.connect(sg); sg.connect(dest);
+                sub.start(t + 0.3); sub.stop(t + 1.3);
+            },
+
+            // Win fanfare — bright ascending chord stab
+            playWinFanfare() {
+                if (!this.ctx) return;
+                const t = this.ctx.currentTime;
+                const dest = this.ctx.destination;
+                const chord = [523.25, 659.25, 783.99, 1046.5];
+                chord.forEach((freq, i) => {
+                    const at = t + i * 0.05;
+                    this._osc(freq, 'triangle', at, at + 0.5, 0.15, dest);
+                    this._osc(freq * 2, 'sine', at, at + 0.3, 0.05, dest);
+                });
+                // Sparkle
+                const hpf = this.ctx.createBiquadFilter();
+                hpf.type = 'highpass'; hpf.frequency.value = 5000;
+                hpf.connect(dest);
+                this._noise(0.25, 0.1, hpf);
+            }
+        };
+
+        // ─── § 4.5  SPRITE ANIMATOR ───────────────────────────────────────
+        class SpriteAnimator {
+            constructor(texture, cols, rows, fps) {
+                this.texture = texture; this.cols = cols;
+                this.rows = rows; this.fps = fps;
+                this.frame = 0; this.elapsed = 0;
+                texture.repeat.set(1 / cols, 1 / rows);
+                this._applyOffset();
+            }
+            update(delta) {
+                this.elapsed += delta;
+                if (this.elapsed > 1 / this.fps) {
+                    this.elapsed = 0;
+                    const total = this.cols * this.rows;
+                    const step = this.step || 1;
+                    this.frame = (this.frame + step + total) % total;
+                    this._applyOffset();
+                }
+            }
+            setFrame(n) { this.frame = n; this._applyOffset(); }
+            _applyOffset() {
+                const col = this.frame % this.cols;
+                const row = Math.floor(this.frame / this.cols);
+                this.texture.offset.set(col / this.cols, 1 - (row + 1) / this.rows);
+            }
+        }
+
+        // ─── § 4.6  PHASE SYSTEM ──────────────────────────────────────────
+        function getPhaseParams(timer) {
+            for (const phase of CONFIG.phases) {
+                if (timer >= phase.start && timer < phase.end) return phase;
+            }
+            return CONFIG.phases[CONFIG.phases.length - 1];
+        }
+
+        // Smooth speed ramp: 0.05 at t=0 → 0.4 at t=60, ease-in curve (t²)
+        function getEnemySpeed() {
+            const t = Math.min(gameTimer / 20, 1.0); // max speed reached at 20s
+            const eased = t * t; // quadratic ease-in — slow start, accelerates
+            return CONFIG.baseSpeed + eased * (0.55 - CONFIG.baseSpeed);
+        }
+
+        const ENEMY_TYPES = {
+            VIRUS: { base64: VIRUS_B64, speed: 1.0, homing: false, opacity: 1.0 },
+        };
+
+
+        let scene, camera, renderer, composer, outlinePass, toonGradientMap;
+        let sky, sunPosition;
+        let gameTimer = 0;
+        let lastTime = 0;
+        let hitStunTimer = 0;
+        let cameraShakeFrames = 0;
+        let cameraShakeAmp = 0;
+        let floorTexture, floorMat, activeFloorMaps = [];
+
+        const container = document.getElementById('game-container');
+
+
+        // ─── § 4.7  SPEED LINES ───────────────────────────────────────────
+        const SpeedLinesVisuals = {
+            lines: null,
+            material: null,
+            lineData: [],
+
+            init() {
+                const geo = new THREE.BufferGeometry();
+                const pos = new Float32Array(20 * 6);
+                geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+                this.material = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0 });
+                this.lines = new THREE.LineSegments(geo, this.material);
+                scene.add(this.lines);
+
+                for (let i = 0; i < 20; i++) {
+                    this.lineData.push({
+                        angle: Math.random() * Math.PI * 2,
+                        dist: Math.random() * 5 + 2,
+                        length: Math.random() * 8 + 4,
+                        speed: Math.random() * 15 + 15
+                    });
+                }
+            },
+            update(delta) {
+                if (!GameState.isPlaying() && !GameState.is(STATES.VPN_SEQ)) return;
+
+                const phase = getPhaseParams(gameTimer);
+                let targetOpacity = 0;
+                let targetColor = 0xffffff;
+                if (phase.start >= 30) targetOpacity = 0.3; // Phase 3+
+                if (Player.vpnActive) {
+                    targetOpacity = 0.7;
+                    targetColor = 0x00ffff;
+                }
+
+                this.material.opacity += (targetOpacity - this.material.opacity) * 5 * delta;
+                this.material.color.setHex(targetColor);
+
+                if (this.material.opacity <= 0.01) return;
+
+                const pos = this.lines.geometry.attributes.position.array;
+                const speedMult = Player.vpnActive ? 1.5 : phase.speed;
+
+                for (let i = 0; i < 20; i++) {
+                    const ld = this.lineData[i];
+                    ld.dist += ld.speed * speedMult * delta;
+                    if (ld.dist > 20) {
+                        ld.dist = 2; // reset near vanishing point
+                        ld.angle = Math.random() * Math.PI * 2;
+                    }
+
+                    const x1 = Math.cos(ld.angle) * ld.dist;
+                    const y1 = 0.8 + Math.sin(ld.angle) * ld.dist;
+                    const z1 = -40 + ld.dist * 2.0;
+
+                    const len = ld.length * speedMult;
+                    const x2 = Math.cos(ld.angle) * (ld.dist + len);
+                    const y2 = 0.8 + Math.sin(ld.angle) * (ld.dist + len);
+                    const z2 = -40 + (ld.dist + len) * 2.0;
+
+                    pos[i * 6] = x1; pos[i * 6 + 1] = y1; pos[i * 6 + 2] = z1;
+                    pos[i * 6 + 3] = x2; pos[i * 6 + 4] = y2; pos[i * 6 + 5] = z2;
+                }
+                this.lines.geometry.attributes.position.needsUpdate = true;
+            }
+        };
+
+        // ─── § 4.8  ATMOSPHERIC PROCEDURAL SKY ────────────────────────────
+        class Sky extends THREE.Mesh {
+            constructor() {
+                const shader = Sky.SkyShader;
+                const material = new THREE.ShaderMaterial({
+                    name: shader.name,
+                    uniforms: THREE.UniformsUtils.clone(shader.uniforms),
+                    vertexShader: shader.vertexShader,
+                    fragmentShader: shader.fragmentShader,
+                    side: THREE.BackSide,
+                    depthWrite: false
+                });
+                super(new THREE.BoxGeometry(1, 1, 1), material);
+                this.isSky = true;
+            }
+        }
+
+        Sky.SkyShader = {
+            name: 'SkyShader',
+            uniforms: {
+                'turbidity': { value: 2 },
+                'rayleigh': { value: 1 },
+                'mieCoefficient': { value: 0.005 },
+                'mieDirectionalG': { value: 0.8 },
+                'sunPosition': { value: new THREE.Vector3() },
+                'up': { value: new THREE.Vector3(0, 1, 0) },
+                'cloudScale': { value: 0.0002 },
+                'cloudSpeed': { value: 0.0001 },
+                'cloudCoverage': { value: 0.4 },
+                'cloudDensity': { value: 0.4 },
+                'cloudElevation': { value: 0.5 },
+                'time': { value: 0.0 }
+            },
+            vertexShader: `
+                uniform vec3 sunPosition;
+                uniform float rayleigh;
+                uniform float turbidity;
+                uniform float mieCoefficient;
+                uniform vec3 up;
+
+                varying vec3 vWorldPosition;
+                varying vec3 vSunDirection;
+                varying float vSunfade;
+                varying vec3 vBetaR;
+                varying vec3 vBetaM;
+                varying float vSunE;
+
+                const float e = 2.71828182845904523536028747135266249775724709369995957;
+                const float pi = 3.141592653589793238462643383279502884197169;
+                const vec3 lambda = vec3( 680E-9, 550E-9, 450E-9 );
+                const vec3 totalRayleigh = vec3( 5.804542996261093E-6, 1.3562911419845635E-5, 3.0265902468824876E-5 );
+                const float v = 4.0;
+                const vec3 K = vec3( 0.686, 0.678, 0.666 );
+                const vec3 MieConst = vec3( 1.8399918514433978E14, 2.7798023919660528E14, 4.0790479543861094E14 );
+                const float cutoffAngle = 1.6110731556870734;
+                const float steepness = 1.5;
+                const float EE = 1000.0;
+
+                float sunIntensity( float zenithAngleCos ) {
+                    zenithAngleCos = clamp( zenithAngleCos, -1.0, 1.0 );
+                    return EE * max( 0.0, 1.0 - pow( e, -( ( cutoffAngle - acos( zenithAngleCos ) ) / steepness ) ) );
+                }
+                vec3 totalMie( float T ) {
+                    float c = ( 0.2 * T ) * 10E-18;
+                    return 0.434 * c * MieConst;
+                }
+                void main() {
+                    vec4 worldPosition = modelMatrix * vec4( position, 1.0 );
+                    vWorldPosition = worldPosition.xyz;
+                    gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
+                    gl_Position.z = gl_Position.w; // set z to camera.far
+                    vSunDirection = normalize( sunPosition );
+                    vSunE = sunIntensity( dot( vSunDirection, up ) );
+                    vSunfade = 1.0 - clamp( 1.0 - exp( ( sunPosition.y / 450000.0 ) ), 0.0, 1.0 );
+                    float rayleighCoefficient = rayleigh - ( 1.0 * ( 1.0 - vSunfade ) );
+                    vBetaR = totalRayleigh * rayleighCoefficient;
+                    vBetaM = totalMie( turbidity ) * mieCoefficient;
+                }
+            `,
+            fragmentShader: `
+                varying vec3 vWorldPosition;
+                varying vec3 vSunDirection;
+                varying vec3 vBetaR;
+                varying vec3 vBetaM;
+                varying float vSunE;
+
+                uniform float mieDirectionalG;
+                uniform vec3 up;
+                uniform float cloudScale;
+                uniform float cloudSpeed;
+                uniform float cloudCoverage;
+                uniform float cloudDensity;
+                uniform float cloudElevation;
+                uniform float time;
+
+                float hash( vec2 p ) {
+                    return fract( sin( dot( p, vec2( 127.1, 311.7 ) ) ) * 43758.5453123 );
+                }
+                float noise( vec2 p ) {
+                    vec2 i = floor( p );
+                    vec2 f = fract( p );
+                    f = f * f * ( 3.0 - 2.0 * f );
+                    float a = hash( i );
+                    float b = hash( i + vec2( 1.0, 0.0 ) );
+                    float c = hash( i + vec2( 0.0, 1.0 ) );
+                    float d = hash( i + vec2( 1.0, 1.0 ) );
+                    return mix( mix( a, b, f.x ), mix( c, d, f.x ), f.y );
+                }
+                float fbm( vec2 p ) {
+                    float value = 0.0;
+                    float amplitude = 0.5;
+                    for ( int i = 0; i < 5; i ++ ) {
+                        value += amplitude * noise( p );
+                        p *= 2.0;
+                        amplitude *= 0.5;
+                    }
+                    return value;
+                }
+
+                const float pi = 3.141592653589793238462643383279502884197169;
+                const float n = 1.0003;
+                const float N = 2.545E25;
+                const float rayleighZenithLength = 8.4E3;
+                const float mieZenithLength = 1.25E3;
+                const float sunAngularDiameterCos = 0.999956676946448443553574619906976478926848692873900859324;
+                const float THREE_OVER_SIXTEENPI = 0.05968310365946075;
+                const float ONE_OVER_FOURPI = 0.07957747154594767;
+
+                float rayleighPhase( float cosTheta ) {
+                    return THREE_OVER_SIXTEENPI * ( 1.0 + pow( cosTheta, 2.0 ) );
+                }
+                float hgPhase( float cosTheta, float g ) {
+                    float g2 = pow( g, 2.0 );
+                    float inverse = 1.0 / pow( 1.0 - 2.0 * g * cosTheta + g2, 1.5 );
+                    return ONE_OVER_FOURPI * ( ( 1.0 - g2 ) * inverse );
+                }
+
+                void main() {
+                    vec3 direction = normalize( vWorldPosition - cameraPosition );
+                    float zenithAngle = acos( max( 0.0, dot( up, direction ) ) );
+                    float inverse = 1.0 / ( cos( zenithAngle ) + 0.15 * pow( 93.885 - ( ( zenithAngle * 180.0 ) / pi ), -1.253 ) );
+                    float sR = rayleighZenithLength * inverse;
+                    float sM = mieZenithLength * inverse;
+                    vec3 Fex = exp( -( vBetaR * sR + vBetaM * sM ) );
+                    float cosTheta = dot( direction, vSunDirection );
+                    float rPhase = rayleighPhase( cosTheta * 0.5 + 0.5 );
+                    vec3 betaRTheta = vBetaR * rPhase;
+                    float mPhase = hgPhase( cosTheta, mieDirectionalG );
+                    vec3 betaMTheta = vBetaM * mPhase;
+                    vec3 Lin = pow( vSunE * ( ( betaRTheta + betaMTheta ) / ( vBetaR + vBetaM ) ) * ( 1.0 - Fex ), vec3( 1.5 ) );
+                    Lin *= mix( vec3( 1.0 ), pow( vSunE * ( ( betaRTheta + betaMTheta ) / ( vBetaR + vBetaM ) ) * Fex, vec3( 1.0 / 2.0 ) ), clamp( pow( 1.0 - dot( up, vSunDirection ), 5.0 ), 0.0, 1.0 ) );
+                    
+                    float theta = acos( direction.y );
+                    float phi = atan( direction.z, direction.x );
+                    vec2 uv = vec2( phi, theta ) / vec2( 2.0 * pi, pi ) + vec2( 0.5, 0.0 );
+                    vec3 L0 = vec3( 0.1 ) * Fex;
+                    
+                    float sundisk = smoothstep( sunAngularDiameterCos, sunAngularDiameterCos + 0.00002, cosTheta );
+                    L0 += ( vSunE * 19000.0 * Fex ) * sundisk;
+                    vec3 texColor = ( Lin + L0 ) * 0.04 + vec3( 0.0, 0.0003, 0.00075 );
+
+                    if ( direction.y > 0.0 && cloudCoverage > 0.0 ) {
+                        float elevation = mix( 1.0, 0.1, cloudElevation );
+                        vec2 cloudUV = direction.xz / ( direction.y * elevation );
+                        cloudUV *= cloudScale;
+                        cloudUV += time * cloudSpeed;
+                        float cloudNoise = fbm( cloudUV * 1000.0 );
+                        cloudNoise += 0.5 * fbm( cloudUV * 2000.0 + 3.7 );
+                        cloudNoise = cloudNoise * 0.5 + 0.5;
+                        float cloudMask = smoothstep( 1.0 - cloudCoverage, 1.0 - cloudCoverage + 0.3, cloudNoise );
+                        float horizonFade = smoothstep( 0.0, 0.1 + 0.2 * cloudElevation, direction.y );
+                        cloudMask *= horizonFade;
+                        float sunInfluence = dot( direction, vSunDirection ) * 0.5 + 0.5;
+                        float daylight = max( 0.0, vSunDirection.y * 2.0 );
+                        vec3 atmosphereColor = Lin * 0.04;
+                        vec3 cloudColor = mix( vec3( 0.3 ), vec3( 1.0 ), daylight );
+                        cloudColor = mix( cloudColor, atmosphereColor + vec3( 1.0 ), sunInfluence * 0.5 );
+                        cloudColor *= vSunE * 0.00002;
+                        texColor = mix( texColor, cloudColor, cloudMask * cloudDensity );
+                    }
+
+                    gl_FragColor = vec4( texColor, 1.0 );
+                    #include <tonemapping_fragment>
+                    #include <colorspace_fragment>
+                }
+            `
+        };
+
+
+        // ─── § 5  THREE.JS SCENE ──────────────────────────────────────────
+        function initScene() {
+            scene = new THREE.Scene();
+            scene.name = 'MainScene';
+            scene.fog = new THREE.Fog(0x0a001a, 12, 70);
+
+            camera = new THREE.PerspectiveCamera(60, 9 / 16, 0.1, 500); // Increased far plane for sky
+            camera.name = 'MainCamera';
+            camera.position.set(0, 2.5, 15);
+            camera.lookAt(0, 1, 0);
+
+            // --- Atmospheric Sky ---
+            sky = new Sky();
+            sky.name = 'ProceduralSky';
+            sky.scale.setScalar(450);
+            scene.add(sky);
+
+            sunPosition = new THREE.Vector3();
+            const uniforms = sky.material.uniforms;
+            uniforms['turbidity'].value = 10;
+            uniforms['rayleigh'].value = 3;
+            uniforms['mieCoefficient'].value = 0.005;
+            uniforms['mieDirectionalG'].value = 0.7;
+
+            // Deep twilight sun placement
+            const phi = THREE.MathUtils.degToRad(88);
+            const theta = THREE.MathUtils.degToRad(180);
+            sunPosition.setFromSphericalCoords(1, phi, theta);
+            uniforms['sunPosition'].value.copy(sunPosition);
+
+            uniforms['cloudCoverage'].value = 0.35; // Nuvens mais aparentes
+            uniforms['cloudDensity'].value = 0.8;
+            uniforms['cloudSpeed'].value = 0.0005; // Metade da velocidade
+
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.setClearColor(0x0a001a);
+            renderer.toneMapping = THREE.LinearToneMapping; // Best for raw Cel Shading colors
+            renderer.toneMappingExposure = 1.0;
+            // Insert renderer behind UI
+            container.insertBefore(renderer.domElement, document.getElementById('hud'));
+
+            // Create discrete 4-step gradient map for TRUE Cel Shading
+            const format = (renderer.capabilities.isWebGL2) ? THREE.RedFormat : THREE.LuminanceFormat;
+            const colors = new Uint8Array([50, 120, 190, 255]); // High contrast bands
+            toonGradientMap = new THREE.DataTexture(colors, colors.length, 1, format);
+            toonGradientMap.needsUpdate = true;
+            toonGradientMap.minFilter = THREE.NearestFilter;
+            toonGradientMap.magFilter = THREE.NearestFilter;
+            toonGradientMap.generateMipmaps = false;
+
+            // --- Post-Processing (Cel Shading Outline) ---
+            composer = new EffectComposer(renderer);
+            const renderPass = new RenderPass(scene, camera);
+            composer.addPass(renderPass);
+
+            // Bloom: neon glow bleeds into the scene like real neon lights
+            const bloomPass = new UnrealBloomPass(
+                new THREE.Vector2(window.innerWidth, window.innerHeight),
+                0.4,   // strength (reduced to avoid sky explosion)
+                0.4,   // radius
+                1.0    // threshold — higher = only super-bright neons bloom, not sky
+            );
+            composer.addPass(bloomPass);
+
+            outlinePass = new OutlinePass(new THREE.Vector2(window.innerWidth, window.innerHeight), scene, camera);
+            outlinePass.edgeStrength = 4.0;
+            outlinePass.edgeGlow = 0.0;
+            outlinePass.edgeThickness = 1.5;
+            outlinePass.pulsePeriod = 0;
+            outlinePass.visibleEdgeColor.set('#000000');
+            outlinePass.hiddenEdgeColor.set('#000000');
+            composer.addPass(outlinePass);
+
+            // Essential for correct color space and tone mapping output to canvas!
+            const outputPass = new OutputPass();
+            composer.addPass(outputPass);
+
+            // ── Main Toon Shading Light (Hard Shadows) ──
+            const dirLight = new THREE.DirectionalLight(0xffffff, 2.0);
+            dirLight.name = 'MainCelLight';
+            dirLight.position.set(15, 25, 10);
+            scene.add(dirLight);
+
+            // Lower ambient light so dark toon bands actually show up
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.25);
+            ambientLight.name = 'AmbientLight';
+            scene.add(ambientLight);
+
+            // ── Neon Accents (Reduced intensity to not overpower cel shading) ──
+            const pointLightL = new THREE.PointLight(0x00ff00, 0.6, 40);
+            pointLightL.name = 'NeonLightLeft';
+            pointLightL.position.set(-5, 2, 0);
+            scene.add(pointLightL);
+
+            const pointLightR = new THREE.PointLight(0x00ffff, 0.6, 40); // Soft Cyan
+            pointLightR.name = 'NeonLightRight';
+            pointLightR.position.set(5, 2, 0);
+            scene.add(pointLightR);
+
+            // ── Stage Spotlights (club atmosphere) ──
+            const spotL = new THREE.PointLight(0xffcc00, 1.2, 30);
+            spotL.name = 'SpotlightLeft';
+            spotL.position.set(-8, 10, -20);
+            scene.add(spotL);
+
+            const spotR = new THREE.PointLight(0x9900ff, 1.2, 30);
+            spotR.name = 'SpotlightRight';
+            spotR.position.set(8, 10, -20);
+            scene.add(spotR);
+
+            const spotC = new THREE.PointLight(0x00ffee, 1.0, 25);
+            spotC.name = 'SpotlightCenter';
+            spotC.position.set(0, 12, -10);
+            scene.add(spotC);
+
+            const spotBack = new THREE.PointLight(0x88ccff, 1.2, 35); // Cool Sky Blue
+            spotBack.name = 'SpotlightBack';
+            spotBack.position.set(0, 6, -40);
+            scene.add(spotBack);
+
+            initCorridor();
+
+            window.addEventListener('resize', onWindowResize, false);
+            onWindowResize(); // Force initial dimension constraints!
+        }
+
+        // ─── § 6  CORRIDOR GEOMETRY ───────────────────────────────────────
+        // --- 6. CORRIDOR GEOMETRY ---
+        function initCorridor() {
+            const loader = new THREE.TextureLoader();
+
+            floorTexture = loader.load(FLOOR_B64);
+            const floorNormal = loader.load(FLOOR_NORMAL_B64);
+            const floorDisp = loader.load(FLOOR_DISP_B64);
+            const floorEdge = loader.load(FLOOR_EDGE_B64);
+
+            [floorTexture, floorNormal, floorDisp, floorEdge].forEach(t => {
+                t.wrapS = t.wrapT = THREE.RepeatWrapping;
+                t.repeat.set(1, 40);
+                t.offset = floorTexture.offset;
+                t.flipY = false;
+                t.anisotropy = renderer.capabilities.getMaxAnisotropy();
+                if (t === floorTexture) t.colorSpace = THREE.SRGBColorSpace;
+                t.needsUpdate = true;
+            });
+
+            activeFloorMaps = [floorTexture];
+
+            floorMat = new THREE.MeshToonMaterial({
+                gradientMap: toonGradientMap,
+                map: floorTexture,
+                normalMap: floorNormal,
+                displacementMap: floorDisp,
+                displacementScale: 0.1,
+                color: 0xffffff,
+                emissive: 0x000000,
+                emissiveIntensity: 0
+            });
+
+            const floorGeo = new THREE.PlaneGeometry(3.5, 200, 64, 1024);
+
+            const floor = new THREE.Mesh(floorGeo, floorMat);
+            floor.name = 'Floor';
+            floor.rotation.x = -Math.PI / 2;
+            floor.position.set(0, 0, -50);
+            scene.add(floor);
+
+            // --- TIGHT TUNNEL GEOMETRY (X=+/-3.5, Y=6.5) ---
+            const wallMat = new THREE.MeshToonMaterial({ gradientMap: toonGradientMap, color: 0x0a1a0a });
+
+            const sidewalkTex = loader.load(SIDEWALK_B64);
+            const sidewalkNormal = loader.load(SIDEWALK_NORMAL_B64);
+            [sidewalkTex, sidewalkNormal].forEach(t => {
+                t.wrapS = t.wrapT = THREE.RepeatWrapping;
+                t.repeat.set(1, 40);
+                t.offset = sidewalkTex.offset;
+                t.flipY = false;
+                t.anisotropy = renderer.capabilities.getMaxAnisotropy();
+                t.needsUpdate = true;
+            });
+            sidewalkTex.colorSpace = THREE.SRGBColorSpace;
+            activeFloorMaps.push(sidewalkTex); // sync with floor
+
+            const sidewalkMat = new THREE.MeshToonMaterial({
+                gradientMap: toonGradientMap,
+                map: sidewalkTex,
+                normalMap: sidewalkNormal,
+                color: 0xffffff
+            });
+
+            // 1. LEFT WALL
+            const wallL = new THREE.Mesh(new THREE.PlaneGeometry(200, 10), wallMat);
+            wallL.name = 'WallLeft';
+            wallL.rotation.y = Math.PI / 2;
+            wallL.position.set(-3.2, 5, -50);
+            scene.add(wallL);
+
+            // 2. RIGHT WALL
+            const wallR = new THREE.Mesh(new THREE.PlaneGeometry(200, 10), wallMat);
+            wallR.name = 'WallRight';
+            wallR.rotation.y = -Math.PI / 2;
+            wallR.position.set(3.2, 5, -50);
+            scene.add(wallR);
+
+            // 3. SIDEWALKS (Significantly raised for visibility)
+            const swGeo = new THREE.BoxGeometry(1.5, 0.8, 200);
+            const swL = new THREE.Mesh(swGeo, sidewalkMat);
+            swL.name = 'SidewalkLeft';
+            swL.position.set(-2.5, -.3, -50); // Top at 0.75
+            scene.add(swL);
+
+            const swR = new THREE.Mesh(swGeo, sidewalkMat);
+            swR.name = 'SidewalkRight';
+            swR.position.set(2.5, -.3, -50); // Top at 0.75
+            scene.add(swR);
+
+            // 4. CEILING — textured matching floor
+            const ceilTex = loader.load(CEILING_B64);
+            const ceilNormal = loader.load(CEILING_NORMAL_B64);
+
+            [ceilTex, ceilNormal].forEach(t => {
+                t.wrapS = t.wrapT = THREE.RepeatWrapping;
+                t.repeat.set(1, -40);
+                t.offset = ceilTex.offset;
+                t.flipY = false;
+                t.anisotropy = renderer.capabilities.getMaxAnisotropy();
+                t.needsUpdate = true;
+            });
+            ceilTex.colorSpace = THREE.SRGBColorSpace;
+            activeFloorMaps.push(ceilTex);
+
+            const ceilMat = new THREE.MeshToonMaterial({
+                gradientMap: toonGradientMap,
+                map: ceilTex,
+                normalMap: ceilNormal,
+                color: 0xffffff,
+                emissive: 0x000000,
+                emissiveIntensity: 0
+            });
+
+            const ceilGeo = new THREE.PlaneGeometry(7, 200, 16, 512);
+
+            const ceiling = new THREE.Mesh(ceilGeo, ceilMat);
+            ceiling.name = 'Ceiling';
+            ceiling.rotation.x = Math.PI / 2;
+            ceiling.position.set(0, 6.5, -50);
+            scene.add(ceiling);
+
+            // --- DECORATIONS (Looped Tiles for Horizon) ---
+            const TILE_DEPTH = 60;
+            const NUM_TILES = 3;
+            tunnelTiles = [];
+
+            // Reuse materials to be efficient (Instancing-lite)
+            const railGeo = new THREE.BoxGeometry(0.1, 0.08, TILE_DEPTH);
+            const railMat = new THREE.MeshToonMaterial({
+                gradientMap: toonGradientMap,
+                color: 0x111a11,
+                emissive: 0x39ff14,
+                emissiveIntensity: 1.8
+            });
+            const panelFrameMat = new THREE.MeshToonMaterial({ gradientMap: toonGradientMap, color: 0x060e06 });
+            const pillarTex = loader.load(PILLAR_B64);
+            pillarTex.wrapS = pillarTex.wrapT = THREE.RepeatWrapping;
+            pillarTex.repeat.set(1, 4);
+            pillarTex.flipY = false;
+            pillarTex.colorSpace = THREE.SRGBColorSpace;
+            const pillarNormal = loader.load(PILLAR_NORMAL_B64);
+            pillarNormal.wrapS = pillarNormal.wrapT = THREE.RepeatWrapping;
+            pillarNormal.repeat.set(1, 4);
+            pillarNormal.flipY = false;
+            const pillarMat = new THREE.MeshToonMaterial({
+                gradientMap: toonGradientMap,
+                map: pillarTex,
+                normalMap: pillarNormal,
+                color: 0xffffff,
+            });
+            const lightGeo = new THREE.CylinderGeometry(0.12, 0.12, 0.02, 16);
+            const lightMat = new THREE.MeshToonMaterial({ color: 0x00ff00, emissive: 0x00ff00, emissiveIntensity: 2.5 });
+
+            // Matrix Screen Texture (Shared) — higher resolution for larger panels
+            const PANEL_W = 512, PANEL_H = 1024;
+            const matrixCanvas = document.createElement('canvas');
+            matrixCanvas.width = PANEL_W; matrixCanvas.height = PANEL_H;
+            const ctx = matrixCanvas.getContext('2d');
+            function drawMatrix() {
+                ctx.fillStyle = '#020a02'; ctx.fillRect(0, 0, PANEL_W, PANEL_H);
+                ctx.font = '13px monospace';
+                for (let r = 0; r < Math.floor(PANEL_H / 16); r++) {
+                    for (let c = 0; c < Math.floor(PANEL_W / 14); c++) {
+                        ctx.fillStyle = `rgba(0, ${Math.floor(160 + Math.random() * 95)}, ${Math.floor(30 + Math.random() * 30)}, ${0.25 + Math.random() * 0.75})`;
+                        ctx.fillText(Math.random() > 0.5 ? '1' : '0', c * 14 + 3, r * 16 + 13);
+                    }
+                }
+            }
+            drawMatrix();
+            const matrixTex = new THREE.CanvasTexture(matrixCanvas);
+            setInterval(() => { drawMatrix(); matrixTex.needsUpdate = true; }, 120);
+
+            const panelScreenMat = new THREE.MeshToonMaterial({
+                gradientMap: toonGradientMap, color: 0x001200,
+                emissiveMap: matrixTex, emissive: new THREE.Color(0xffffff), emissiveIntensity: 5.5
+            });
+            const recessMat = new THREE.MeshToonMaterial({
+                color: 0x020205, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1
+            });
+
+            function createTile(offsetZ) {
+                const tile = new THREE.Group();
+                tile.position.z = offsetZ;
+                scene.add(tile);
+
+                // 1. Rails
+                const railL = new THREE.Mesh(railGeo, railMat);
+                railL.position.set(-0.8, 0.04, -TILE_DEPTH / 2);
+                tile.add(railL);
+                const railR = new THREE.Mesh(railGeo, railMat);
+                railR.position.set(0.8, 0.04, -TILE_DEPTH / 2);
+                tile.add(railR);
+
+                // 2. Cables — arced high near ceiling
+                const sides = [-3, 3];
+                const bundle = [[0xcc1100, 0.055, -0.16], [0xddddcc, 0.040, -0.06], [0x0044bb, 0.060, 0.06], [0x111111, 0.035, 0.16]];
+                sides.forEach(wallX => {
+                    bundle.forEach(([hex, radius, xOff]) => {
+                        const pts = [];
+                        for (let z = 0; z >= -TILE_DEPTH; z -= 7.5) {
+                            const t = Math.abs(((z % 15) + 15) % 15 - 7.5) / 7.5; // 0→1→0
+                            const y = 5.5 + t * 0.9; // arcs between 5.5 and 6.4
+                            pts.push(new THREE.Vector3(wallX + xOff, y, z));
+                        }
+                        const curve = new THREE.CatmullRomCurve3(pts);
+                        const cable = new THREE.Mesh(new THREE.TubeGeometry(curve, 20, radius, 5, false), new THREE.MeshToonMaterial({ color: hex }));
+                        tile.add(cable);
+                    });
+                });
+
+                // 3. Pillars — vertical columns between panels
+                const pillarGeo = new THREE.BoxGeometry(0.3, 6.2, 0.45);
+                const pillarSides = [{ x: -3.08 }, { x: 3.08 }];
+                for (let z = 0; z >= -TILE_DEPTH; z -= 15) {
+                    pillarSides.forEach(({ x }) => {
+                        const pillar = new THREE.Mesh(pillarGeo, pillarMat);
+                        pillar.position.set(x, 3.1, z);
+                        pillar.castShadow = true;
+                        pillar.receiveShadow = true;
+                        tile.add(pillar);
+                        // Pillar base detail
+                        // const base = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.25, 0.52), pillarMat);
+                        // base.position.set(x, 0.12, z);
+                        // tile.add(base);
+                        // Pillar top detail
+                        const cap = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.25, 0.52), pillarMat);
+                        cap.position.set(x, 6.25, z);
+                        tile.add(cap);
+                    });
+                }
+
+                // 4. Panels — fill almost entire space between pillars (pillar spacing=15, pillar depth=0.45)
+                // Panel Z-width: 15 - 0.45 - 0.3 gap = ~14.2. Height: wall is 6.5, panel ~6.0.
+                const panelSides = [{ wallX: -3.8, screenX: -3.1, rotY: Math.PI / 2 }, { wallX: 3.8, screenX: 3.1, rotY: -Math.PI / 2 }];
+                for (let z = -7.5; z >= -TILE_DEPTH; z -= 15) {
+                    panelSides.forEach(({ wallX, screenX, rotY }) => {
+                        const frame = new THREE.Mesh(new THREE.BoxGeometry(0.12, 6.0, 14.2), panelFrameMat);
+                        frame.position.set(wallX, 3.0, z);
+                        tile.add(frame);
+                        const screen = new THREE.Mesh(new THREE.PlaneGeometry(14.0, 5.8), panelScreenMat);
+                        screen.position.set(screenX, 3.1, z);
+                        screen.rotation.y = rotY;
+                        tile.add(screen);
+                    });
+                }
+
+                // 5. Lights
+                // 5. Lights — moved to ceiling
+                for (let z = 0; z >= -TILE_DEPTH; z -= 6) {
+                    [-2.5, 2.5].forEach(x => {
+                        const disc = new THREE.Mesh(lightGeo, lightMat);
+                        disc.position.set(x, 6.4, z);
+                        tile.add(disc);
+                    });
+                }
+                return tile;
+            }
+
+            // Tile elements span z=0 to z=-TILE_DEPTH (local). Player is at world z=8.
+            // For a tile to cover z=8, it needs position.z > 8.
+            // Tile 0 starts at +30 (covers z=30 down to z=-30), tile 1 at -30, tile 2 at -90.
+            for (let i = 0; i < NUM_TILES; i++) {
+                tunnelTiles.push(createTile(30 - i * TILE_DEPTH));
+            }
+        }
+
+        // ─── § 7  PLAYER ──────────────────────────────────────────────────
+
+        // @@DRACO_PATCH@@
+
+        // VPN Shader: Energy sweep band effect on player model during active VPN
+        const VPN_SWEEP_FRAGMENT_INJECT = `
+                                        if (uVpnTime >= 0.0) {
+                                            // Sweep band: moves from feet (y≈0.8) to head (y≈2.8)
+                                            float bandY = mod(uVpnTime * 2.2, 4.0) + 0.5;
+                                            float dist = abs(vWorldPos.y - bandY);
+                                            float sweep = smoothstep(0.35, 0.0, dist);
+                                            // Flickering secondary band
+                                            float band2Y = mod(uVpnTime * 2.2 + 1.8, 4.0) + 0.5;
+                                            float sweep2 = smoothstep(0.18, 0.0, abs(vWorldPos.y - band2Y)) * 0.5;
+                                            vec3 elecColor = mix(vec3(0.0, 0.55, 1.0), vec3(0.4, 0.9, 1.0), sweep);
+                                            gl_FragColor.rgb += elecColor * (sweep + sweep2) * 1.8;
+                                        }`;
+
+        function loadPlayerModel() {
+            return new Promise((resolve) => {
+                const dracoLoader = new DRACOLoader();
+                dracoLoader.setDecoderPath('https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/libs/draco/');
+                const loader = new GLTFLoader();
+                loader.setDRACOLoader(dracoLoader);
+                loader.load(PLAYER_MODEL_B64, (gltf) => {
+                    const group = gltf.scene;
+                    group.name = 'PlayerRobot';
+                    // Scale to match the ~1.5-unit tall robot (adjust if needed)
+                    group.scale.set(1, 1, 1);
+                    // Collect all meshes for opacity support and upgrade materials
+                    group._allMeshes = [];
+                    // Shared VPN shader uniform — controlled by VPNSystem
+                    group._vpnUniforms = { uVpnTime: { value: -1.0 } }; // -1 = off
+
+                    group.traverse(obj => {
+                        if (obj.isMesh) {
+                            group._allMeshes.push(obj);
+
+                            // PREMIUM TOON UPGRADE: Cel shading!
+                            if (obj.material) {
+                                const oldMat = obj.material;
+                                const mat = new THREE.MeshToonMaterial({
+                                    color: oldMat.color,
+                                    map: oldMat.map,
+                                    gradientMap: toonGradientMap
+                                });
+
+                                // Glowing visor/mouth
+                                const name = obj.name.toLowerCase();
+                                if (name.includes('visor') || name.includes('mouth')) {
+                                    mat.emissive = new THREE.Color(0x00E5FF);
+                                    mat.emissiveIntensity = 2.0;
+                                }
+
+                                // VPN energy sweep shader patch
+                                const vpnUniforms = group._vpnUniforms;
+                                mat.onBeforeCompile = (shader) => {
+                                    shader.uniforms.uVpnTime = vpnUniforms.uVpnTime;
+                                    // Inject worldPos varying into vertex shader
+                                    shader.vertexShader = shader.vertexShader.replace(
+                                        'void main() {',
+                                        'varying vec3 vWorldPos;\nvoid main() {'
+                                    ).replace(
+                                        '#include <project_vertex>',
+                                        '#include <project_vertex>\nvWorldPos = (modelMatrix * vec4(transformed, 1.0)).xyz;'
+                                    );
+                                    // Inject energy sweep into fragment shader
+                                    shader.fragmentShader = shader.fragmentShader.replace(
+                                        'void main() {',
+                                        'varying vec3 vWorldPos;\nuniform float uVpnTime;\nvoid main() {'
+                                    ).replace(
+                                        '#include <dithering_fragment>',
+                                        '#include <dithering_fragment>' + VPN_SWEEP_FRAGMENT_INJECT
+                                    );
+                                };
+                                mat.customProgramCacheKey = () => 'vpn-sweep';
+
+                                obj.material = mat;
+                                obj.castShadow = true;
+                                obj.receiveShadow = true;
+                            }
+                        }
+                    });
+
+                    // Helper to fix pivots for Tripo generated models so they rotate from joints
+                    function setPivot(mesh, alignY) {
+                        if (!mesh) return null;
+                        // Clone geometry so we don't accidentally mutate shared data
+                        mesh.geometry = mesh.geometry.clone();
+                        mesh.geometry.computeBoundingBox();
+                        const bb = mesh.geometry.boundingBox;
+                        const p = new THREE.Vector3();
+                        bb.getCenter(p);
+
+                        // Pick the precise height of the pivot
+                        if (alignY === 'top') p.y = bb.max.y; // Arm 'shoulder'
+                        if (alignY === 'bottom') p.y = bb.min.y; // Antenna 'base'
+
+                        // Shift geometry to center around the new pivot locally
+                        mesh.geometry.translate(-p.x, -p.y, -p.z);
+                        // Offset the mesh position itself so visually it doesn't move
+                        mesh.position.add(p);
+
+                        mesh.userData.baseRot = mesh.rotation.clone();
+                        return mesh;
+                    }
+
+                    // Bind specific named body parts and fix their rig pivots dynamically
+                    group._armL = setPivot(group.getObjectByName('tripo_part_3'), 'top');
+                    group._armR = setPivot(group.getObjectByName('tripo_part_4'), 'top');
+                    group._antenna = setPivot(group.getObjectByName('tripo_part_5'), 'bottom');
+
+                    group.setExpression = function () { };
+                    resolve(group);
+                });
+            });
+        }
+
+        const Player = {
+            group: null,
+            laneIndex: 1,
+            targetX: 0,
+            laneChanging: false,
+            shields: CONFIG.startShields,
+            vpnActive: false,
+            tiltAngle: 0,
+            tiltVelocity: 0,
+            tiltTarget: 0,
+
+            // Backwards-compat getter so external code using Player.sprite still works
+            get sprite() { return this.group; },
+
+            _setOpacity(val) {
+                if (!this.group) return;
+                this.group._allMeshes.forEach(m => {
+                    if (!m.material) return;
+                    m.material.transparent = val < 1.0;
+                    m.material.opacity = val;
+                });
+            },
+
+            async init() {
+                const group = await loadPlayerModel();
+                group.position.set(0, 1.1, 8);
+                group.scale.set(1.5, 1.5, 1.5); // New base scale
+
+                // --- NEW: Highlight lights to make the player pop ---
+                // Main front/top light
+                this.playerLight = new THREE.PointLight(0xffffff, 3.0, 10);
+                this.playerLight.name = 'PlayerFrontLight';
+                this.playerLight.position.set(0, 2.5, -3);
+                group.add(this.playerLight);
+
+                // Aesthetic rim light from behind (cyan matching the theme)
+                this.rimLight = new THREE.PointLight(0x00E5FF, 5.0, 8);
+                this.rimLight.name = 'PlayerRimLight';
+                this.rimLight.position.set(0, 0.5, 2.5);
+                group.add(this.rimLight);
+                // ----------------------------------------------------
+
+                scene.add(group);
+                this.group = group;
+                this.baseRotationY = Math.PI; // Face away from camera
+                this.group.rotation.y = this.baseRotationY;
+                this.targetX = CONFIG.lanePositions[this.laneIndex];
+            },
+
+            update(delta) {
+                if (!this.group) return;
+
+                // Lane interpolation (Smoother easing)
+                this.group.position.x += (this.targetX - this.group.position.x) * 14 * delta;
+                if (Math.abs(this.group.position.x - this.targetX) < 0.01) {
+                    this.group.position.x = this.targetX;
+                    this.laneChanging = false;
+                }
+
+                // Scale recovery (squash & stretch) — always recover to base 1.5, VPN doesn't change size
+                const baseScale = 1.5;
+                this.group.scale.x += (baseScale - this.group.scale.x) * 12 * delta;
+                this.group.scale.y += (baseScale - this.group.scale.y) * 12 * delta;
+                const currentZ = this.group.scale.z || 1.0;
+                this.group.scale.z += (baseScale - currentZ) * 12 * delta;
+
+                // Tilt spring (lean on lane change)
+                if (!this.laneChanging) this.tiltTarget = 0;
+                const err = this.tiltTarget - this.tiltAngle;
+                // Faster and more responsive spring
+                this.tiltVelocity += (40 * err - 12 * this.tiltVelocity) * delta;
+                this.tiltAngle += this.tiltVelocity * delta;
+                this.group.rotation.z = this.tiltAngle;
+
+                // Yaw rotation (Y axis) so the player "looks" towards the target lane
+                // Signs reversed because the model is now rotated 180deg (Math.PI)
+                const targetYaw = this.baseRotationY + (this.targetX - this.group.position.x) * 0.5;
+                this.group.rotation.y += (targetYaw - this.group.rotation.y) * 15 * delta;
+
+                // Procedural animations for isolated parts (Arms and Antenna)
+                const t = Date.now() * 0.002;
+                // Run cycle defaults
+                let targetArmL_X = Math.sin(t * 2.5) * 0.15; let targetArmL_Z = -0.05; // Reversed to open outward from torso
+                let targetArmR_X = -Math.sin(t * 2.5) * 0.15; let targetArmR_Z = 0.05; // Reversed
+                let targetAntenna_X = Math.sin(t * 2.0) * 0.05; let targetAntenna_Z = 0; // Antenna bobs very slightly
+
+                if (GameState.is(STATES.HIT_STUN)) {
+                    // Throw hands up!
+                    targetArmL_X = -Math.PI * 0.6; targetArmL_Z = 0.3; // Reversed
+                    targetArmR_X = -Math.PI * 0.6; targetArmR_Z = -0.3; // Reversed
+                    targetAntenna_X = Math.PI * 0.2; // Bend back in shock
+                } else if (this.laneChanging) {
+                    const movingRight = this.tiltTarget > 0;
+                    if (movingRight) {
+                        // Dodging RIGHT
+                        targetArmR_Z = -0.4; // Right arm flairs OUT slightly less
+                        targetArmL_X = Math.sin(t * 8) * 0.3; // Left arm shakes slightly
+                        targetArmL_Z = -0.1;
+                    } else {
+                        // Dodging LEFT
+                        targetArmL_Z = 0.4; // Left arm flairs OUT slightly less
+                        targetArmR_X = Math.sin(t * 8) * 0.3; // Right arm shakes slightly
+                        targetArmR_Z = 0.1;
+                    }
+                    // Antenna lags dynamically (reversed sign to tilt correctly with new Math.PI rotation)
+                    targetAntenna_Z = this.tiltVelocity * 0.08;
+                }
+
+                // Smoothly lerp to target rotations (adding them to the mesh's base pose)
+                if (this.group._armL && this.group._armL.userData.baseRot) {
+                    const base = this.group._armL.userData.baseRot;
+                    this.group._armL.rotation.x += ((base.x + targetArmL_X) - this.group._armL.rotation.x) * 12 * delta;
+                    this.group._armL.rotation.z += ((base.z + targetArmL_Z) - this.group._armL.rotation.z) * 12 * delta;
+                }
+                if (this.group._armR && this.group._armR.userData.baseRot) {
+                    const base = this.group._armR.userData.baseRot;
+                    this.group._armR.rotation.x += ((base.x + targetArmR_X) - this.group._armR.rotation.x) * 12 * delta;
+                    this.group._armR.rotation.z += ((base.z + targetArmR_Z) - this.group._armR.rotation.z) * 12 * delta;
+                }
+                if (this.group._antenna && this.group._antenna.userData.baseRot) {
+                    const base = this.group._antenna.userData.baseRot;
+                    this.group._antenna.rotation.x += ((base.x + targetAntenna_X) - this.group._antenna.rotation.x) * 15 * delta;
+                    this.group._antenna.rotation.z += ((base.z + targetAntenna_Z) - this.group._antenna.rotation.z) * 15 * delta;
+                }
+
+                // Floating hover
+                if (!this.vpnActive) {
+                    this.group.position.y = 1.1 + Math.sin(Date.now() * 0.003) * 0.12;
+                }
+
+                // Expression state
+                if (GameState.is(STATES.HIT_STUN)) {
+                    this.group.setExpression('hit');
+                } else if (this.vpnActive) {
+                    this.group.setExpression('vpn');
+                } else {
+                    this.group.setExpression('normal');
+                }
+            },
+
+            changeLane(dir) {
+                if (!GameState.is(STATES.PLAYING)) return;
+                if (!this.group) return; // Safety check
+                const next = Math.max(0, Math.min(2, this.laneIndex + dir));
+                if (next === this.laneIndex) return;
+
+                // calculate physical direction (-1 or 1) based on actual target position
+                const actualDir = Math.sign(CONFIG.lanePositions[next] - this.group.position.x);
+
+                this.laneIndex = next;
+                this.targetX = CONFIG.lanePositions[next];
+                this.laneChanging = true;
+
+                // Squash & stretch trigger (more exaggerated)
+                this.group.scale.x = 1.5 * 1.35;
+                this.group.scale.y = 1.5 * 0.70;
+                this.group.scale.z = 1.5 * 1.15;
+
+                // Tilt into direction (reversed sign for Math.PI rotation)
+                this.tiltTarget = actualDir * 0.65;
+
+                AudioManager.playLaneChange();
+            },
+
+            takeDamage(killerType = 'VIRUS') {
+                if (this.vpnActive) return;
+                this.shields -= 1;
+                this.lastHitBy = killerType;
+                HUD.updateShields(this.shields);
+                ScoreSystem.resetCombo();
+                AudioManager.playHit();
+
+                const flash = document.getElementById('flash-overlay');
+                flash.style.background = '#ff3300';
+                flash.style.transition = 'opacity 0.05s';
+                flash.style.opacity = '0.6';
+                setTimeout(() => {
+                    flash.style.transition = 'opacity 0.3s ease-out';
+                    flash.style.opacity = '0';
+                    setTimeout(() => { flash.style.background = 'white'; }, 300);
+                }, 50);
+
+                if (this.shields <= 0) {
+                    GameState.setState(STATES.GAME_OVER);
+                    cameraShakeFrames = 12;
+                    cameraShakeAmp = 0.5;
+                } else {
+                    GameState.setState(STATES.HIT_STUN);
+                    hitStunTimer = 0.8;
+                    cameraShakeFrames = 8;
+                    cameraShakeAmp = 0.3;
+                }
+            },
+
+            reset() {
+                this.laneIndex = 1;
+                this.targetX = CONFIG.lanePositions[1];
+                if (this.group) {
+                    this.group.position.set(0, 1.1, 8);
+                    this.group.rotation.y = this.baseRotationY || Math.PI;
+                    this.group.rotation.z = 0;
+                    this.group.scale.set(1.5, 1.5, 1.5);
+                    this.group.setExpression('normal');
+                }
+                this.shields = CONFIG.startShields;
+                this.vpnActive = false;
+                this.laneChanging = false;
+                this.tiltAngle = 0;
+                this.tiltVelocity = 0;
+                this.tiltTarget = 0;
+                this._setOpacity(1.0);
+                HUD.updateShields(this.shields);
+            }
+        };
+
+        // ─── § 8  ENEMY SYSTEM ────────────────────────────────────────────
+        // Depends: § 4.6 (getPhaseParams), § 4.4 (AudioManager)
+        // Used by: § 9 (checkCollisions), § 13 (update)
+        const EnemyManager = {
+            pool: [],
+            spawnTimer: 0,
+            activeCount: 0,
+            virusGltf: null,
+
+            init() {
+                const loader = new THREE.TextureLoader();
+                // Load textures into ENEMY_TYPES (skip VIRUS — uses 3D model now)
+                for (const t in ENEMY_TYPES) {
+                    if (t !== 'VIRUS' && ENEMY_TYPES[t].base64) {
+                        ENEMY_TYPES[t].texture = loader.load(ENEMY_TYPES[t].base64);
+                    }
+                }
+
+                // Load virus GLB once, then build the pool (DRACOLoader required for compressed GLBs)
+                const dracoLoader = new DRACOLoader();
+                dracoLoader.setDecoderPath('https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/libs/draco/');
+                const gltfLoader = new GLTFLoader();
+                gltfLoader.setDRACOLoader(dracoLoader);
+                gltfLoader.load(VIRUS_MODEL_B64, (gltf) => {
+                    this.virusGltf = gltf;
+                    this._buildPool();
+                });
+            },
+
+            _buildPool() {
+                const loader = new THREE.TextureLoader();
+                for (let i = 0; i < CONFIG.poolSize; i++) {
+                    // VIRUS slots: use 3D model clone
+                    const virusGroup = this.virusGltf.scene.clone(true);
+                    virusGroup.name = `EnemyVirus_${i}`;
+                    virusGroup.visible = false;
+                    virusGroup.traverse(obj => {
+                        if (obj.isMesh) {
+                            obj.castShadow = true;
+                            obj.receiveShadow = true;
+                        }
+                    });
+                    scene.add(virusGroup);
+
+                    // Sprite slot for non-VIRUS types (shared, repurposed per spawn)
+                    const dummyTex = loader.load(PHISH_B64);
+                    const mat = new THREE.SpriteMaterial({ map: dummyTex, transparent: true });
+                    const sprite = new THREE.Sprite(mat);
+                    sprite.name = `EnemySprite_${i}`;
+                    sprite.visible = false;
+                    scene.add(sprite);
+
+                    this.pool.push({
+                        mesh: virusGroup,
+                        sprite,
+                        active: false,
+                        laneIndex: 0,
+                        targetLaneIndex: 0,   // for smooth lane-change tween
+                        type: 'VIRUS',
+                        bobOffset: Math.random() * Math.PI * 2,  // phase offset for bob
+                        bobSpeed: 1.8 + Math.random() * 1.0,     // individual bob frequency
+                        bobAmp: 0.12 + Math.random() * 0.10,     // individual bob amplitude
+                        phaseTimer: 0,
+                        laneChangeTimer: 0,
+                        laneChangeCooldown: 2.5 + Math.random() * 2.0,
+                        // Jump behaviour
+                        jumpTimer: 3.0 + Math.random() * 4.0, // time until next jump
+                        jumpActive: false,
+                        jumpTime: 0,
+                        jumpDuration: 0.45,
+                        jumpHeight: 0.8 + Math.random() * 0.5,
+                        // Speed burst behaviour
+                        burstTimer: 4.0 + Math.random() * 5.0,
+                        burstActive: false,
+                        burstRemaining: 0,
+                        burstMult: 1.0,
+                    });
+                }
+            },
+
+            // Returns the Z of the most recently spawned (furthest back) active enemy.
+            // We spawn a new one only when this enemy has moved spawnGap units away from spawn.
+            _lastSpawnZ() {
+                let furthestBack = Infinity; // most negative Z = most recently spawned
+                for (const e of this.pool) {
+                    if (!e.active) continue;
+                    const obj = e.type === 'VIRUS' ? e.mesh : e.sprite;
+                    if (obj.position.z < furthestBack) furthestBack = obj.position.z;
+                }
+                return furthestBack; // Infinity means no active enemies
+            },
+
+            update(delta) {
+                if (!GameState.isPlaying()) return;
+                const params = getPhaseParams(gameTimer);
+                const spd = getEnemySpeed();
+
+                // Spawn by distance gap — independent of speed
+                if (CONFIG.spawnEnemies) {
+                    const lastZ = this._lastSpawnZ();
+                    const activeCount = this.pool.filter(e => e.active).length;
+                    // lastZ === Infinity means no enemies active — always spawn first one.
+                    // Otherwise spawn when the most recently placed enemy has moved spawnGap ahead of spawn point.
+                    const gapClear = lastZ === Infinity || lastZ > CONFIG.enemySpawnZ + CONFIG.spawnGap;
+                    if (activeCount < params.maxSim && gapClear) {
+                        this._spawnEnemy(params);
+                    }
+                }
+
+                const t = gameTimer;
+                for (const e of this.pool) {
+                    if (!e.active) continue;
+                    const typeData = ENEMY_TYPES[e.type];
+                    e.phaseTimer += delta;
+                    e.laneChangeTimer += delta;
+
+                    const obj = e.type === 'VIRUS' ? e.mesh : e.sprite;
+
+                    // ── Speed burst ──
+                    if (e.type === 'VIRUS') {
+                        if (e.burstActive) {
+                            e.burstRemaining -= delta;
+                            if (e.burstRemaining <= 0) {
+                                e.burstActive = false;
+                                e.burstMult = 1.0;
+                                e.burstTimer = 3.5 + Math.random() * 5.0;
+                            }
+                        } else {
+                            e.burstTimer -= delta;
+                            if (e.burstTimer <= 0) {
+                                e.burstActive = true;
+                                e.burstMult = 1.8 + Math.random() * 0.6; // 1.8x–2.4x speed
+                                e.burstRemaining = 0.35 + Math.random() * 0.25;
+                            }
+                        }
+                    }
+
+                    // ── Move toward camera ──
+                    obj.position.z += spd * typeData.speed * e.burstMult * 60 * delta;
+
+                    // ── Jump animation ──
+                    let jumpY = 0;
+                    if (e.type === 'VIRUS') {
+                        if (e.jumpActive) {
+                            e.jumpTime += delta;
+                            const p = e.jumpTime / e.jumpDuration;
+                            jumpY = Math.sin(p * Math.PI) * e.jumpHeight; // arc up and back down
+                            if (e.jumpTime >= e.jumpDuration) {
+                                e.jumpActive = false;
+                                e.jumpTimer = 2.0 + Math.random() * 4.5;
+                            }
+                        } else {
+                            e.jumpTimer -= delta;
+                            if (e.jumpTimer <= 0) {
+                                e.jumpActive = true;
+                                e.jumpTime = 0;
+                                e.jumpDuration = 0.38 + Math.random() * 0.2;
+                                e.jumpHeight = 0.7 + Math.random() * 0.7;
+                            }
+                        }
+                    }
+
+                    // ── Smooth bob + jump ──
+                    obj.position.y = 0.85 + Math.sin(t * e.bobSpeed + e.bobOffset) * e.bobAmp + jumpY;
+
+                    // ── Random lane change (VIRUS, more aggressive) ──
+                    if (e.type === 'VIRUS' && e.laneChangeTimer >= e.laneChangeCooldown) {
+                        e.laneChangeTimer = 0;
+                        // Cooldown is shorter in later phases
+                        const phaseProgress = Math.min(gameTimer / 60, 1.0);
+                        e.laneChangeCooldown = Math.max(0.8, 2.0 - phaseProgress * 1.2) + Math.random() * 1.5;
+                        const effectivePct = params.laneChangePct + phaseProgress * 0.25;
+                        if (Math.random() < effectivePct) {
+                            const options = [0, 1, 2].filter(l => l !== e.laneIndex);
+                            e.targetLaneIndex = options[Math.floor(Math.random() * options.length)];
+                            e.laneIndex = e.targetLaneIndex;
+                        }
+                    }
+
+                    // ── Smooth X tween toward target lane (lateral lanes nudged inward) ──
+                    const li = e.targetLaneIndex;
+                    const baseLaneX = CONFIG.lanePositions[li];
+                    const targetX = li === 0 ? baseLaneX + 0.2 : li === 2 ? baseLaneX - 0.2 : baseLaneX;
+                    const laneSpeed = e.burstActive ? 9.0 : 4.0;
+                    obj.position.x += (targetX - obj.position.x) * laneSpeed * delta;
+
+                    // ── Scale with Z progress ──
+                    const zProgress = (obj.position.z - CONFIG.enemySpawnZ) / (CONFIG.enemyDespawnZ - CONFIG.enemySpawnZ);
+                    const s = 0.3 + Math.max(0, zProgress) * 0.9;
+
+                    if (e.type === 'VIRUS') {
+                        const vs = s * CONFIG.virusBaseScale;
+                        obj.scale.set(vs, vs, vs);
+                        obj.rotation.y = Math.sin(t * 1.5 + e.bobOffset) * 0.25 - Math.PI / 2;
+                    } else {
+                        obj.scale.set(s, s, 1);
+                    }
+
+                    // ── Despawn ──
+                    if (obj.position.z >= CONFIG.enemyDespawnZ) {
+                        e.active = false;
+                        obj.visible = false;
+                        ScoreSystem.onEnemyDodged();
+                    }
+                }
+            },
+
+            _spawnEnemy(params) {
+                if (!this.virusGltf) return;
+                const slot = this.pool.find(e => !e.active);
+                if (!slot) return;
+
+                const validTypes = params.types.includes('ALL') ? Object.keys(ENEMY_TYPES) : params.types;
+                const typeName = validTypes[Math.floor(Math.random() * validTypes.length)];
+                const typeData = ENEMY_TYPES[typeName];
+
+                // Pick lane least populated among active enemies
+                const laneCounts = [0, 0, 0];
+                for (const e of this.pool) {
+                    if (e.active) laneCounts[e.laneIndex]++;
+                }
+                const minCount = Math.min(...laneCounts);
+                const freeLanes = [0, 1, 2].filter(l => laneCounts[l] === minCount);
+                const laneIndex = freeLanes[Math.floor(Math.random() * freeLanes.length)];
+
+                slot.type = typeName;
+                slot.laneIndex = laneIndex;
+                slot.targetLaneIndex = laneIndex;
+                slot.active = true;
+                slot.phaseTimer = 0;
+                slot.laneChangeTimer = 0;
+                slot.jumpTimer = 2.5 + Math.random() * 4.0;
+                slot.jumpActive = false;
+                slot.jumpTime = 0;
+                slot.jumpHeight = 0.8 + Math.random() * 0.5;
+                slot.burstTimer = 3.0 + Math.random() * 4.0;
+                slot.burstActive = false;
+                slot.burstRemaining = 0;
+                slot.burstMult = 1.0;
+
+                // Nudge lateral lanes inward so virus mesh doesn't clip the sidewalk
+                const laneX = CONFIG.lanePositions[laneIndex];
+                const posX = laneIndex === 0 ? laneX + 0.2 : laneIndex === 2 ? laneX - 0.2 : laneX;
+
+                if (typeName === 'VIRUS') {
+                    slot.mesh.position.set(posX, 0.85, CONFIG.enemySpawnZ);
+                    slot.mesh.rotation.y = -Math.PI / 2;
+                    const vs = 0.3 * CONFIG.virusBaseScale;
+                    slot.mesh.scale.set(vs, vs, vs);
+                    slot.mesh.visible = true;
+                    slot.sprite.visible = false;
+                } else {
+                    slot.sprite.position.set(posX, 0.5, CONFIG.enemySpawnZ);
+                    const newMap = typeData.texture;
+                    if (slot.sprite.material.map !== newMap) {
+                        slot.sprite.material.map = newMap;
+                        slot.sprite.material.needsUpdate = true;
+                    }
+                    slot.sprite.material.opacity = typeData.opacity !== undefined ? typeData.opacity : 1.0;
+                    slot.sprite.visible = true;
+                    slot.mesh.visible = false;
+                }
+            },
+
+            reset() {
+                this.pool.forEach(e => {
+                    e.active = false;
+                    if (e.mesh) e.mesh.visible = false;
+                    if (e.sprite) e.sprite.visible = false;
+                });
+                this.spawnTimer = 0;
+            }
+        };
+
+        // ─── § 9  COLLISION ───────────────────────────────────────────────
+        // Used by: § 13 (update)
+        function checkCollisions() {
+            if (!GameState.is(STATES.PLAYING)) return;
+
+            EnemyManager.pool.forEach(e => {
+                if (!e.active) return;
+
+                const typeData = ENEMY_TYPES[e.type];
+                let collision = false;
+
+                // Better distance-based collision mapping
+                let hitBoxWidth = 1.1; // Increased for 1.5x player scale
+                if (typeData.width) hitBoxWidth = typeData.width * 0.9;
+
+                const enemyPos = (e.type === 'VIRUS') ? e.mesh.position : e.sprite.position;
+                const dx = Math.abs(enemyPos.x - Player.group.position.x);
+                // Player's Z is exactly 8.0, enemies pass through
+                const dz = Math.abs(enemyPos.z - Player.group.position.z);
+
+                // Physical distance check for more accurate and visually fair hits
+                if (dx < hitBoxWidth && dz < 1.2) {
+                    collision = true;
+                }
+
+                if (collision) {
+                    e.active = false;
+                    if (e.mesh) e.mesh.visible = false;
+                    if (e.sprite) e.sprite.visible = false;
+                    if (Player.vpnActive) {
+                        VPNSystem.onEnemyContact(e);
+                    } else {
+                        Player.takeDamage(e.type);
+                    }
+                }
+            });
+        }
+
+        // ─── § 10 HUD ─────────────────────────────────────────────────────
+        // Used by: § 13 (update)
+        const HUD = {
+            timerEl: document.getElementById('timer-display'),
+            shieldsEl: document.getElementById('shields-container'),
+
+            update() {
+                if (!GameState.isPlaying()) return;
+                const min = Math.floor(gameTimer / 60);
+                const sec = Math.floor(gameTimer % 60).toString().padStart(2, '0');
+                this.timerEl.textContent = `${min}:${sec}`;
+
+                // Update Phase Name
+                const phase = getPhaseParams(gameTimer);
+                let phaseName = 'PHASE 1';
+                if (phase.start >= 15) phaseName = 'PHASE 2';
+                if (phase.start >= 30) phaseName = 'DANGER ZONE';
+                if (phase.start >= 38) phaseName = 'VPN ACTIVE';
+                if (phase.start >= 46) phaseName = 'POST-VPN';
+                if (phase.start >= 55) phaseName = 'FINALE';
+                document.getElementById('phase-display').textContent = phaseName;
+            },
+
+            updateShields(n) {
+                const icons = this.shieldsEl.children;
+                for (let i = 0; i < icons.length; i++) {
+                    if (i < n) icons[i].classList.remove('lost');
+                    else icons[i].classList.add('lost');
+                }
+
+                const vignette = document.getElementById('vignette');
+                if (n === 1) vignette.classList.add('vignette-danger');
+                else vignette.classList.remove('vignette-danger');
+            },
+
+            showScreen(state) {
+                // Hide all screens
+                document.querySelectorAll('.screen').forEach(s => s.classList.add('hidden'));
+
+                // HUD visibility: only during actual gameplay
+                const hudEl = document.getElementById('hud');
+                const isPlaying = (state === STATES.PLAYING || state === STATES.HIT_STUN);
+                hudEl.style.display = isPlaying ? 'block' : 'none';
+
+                // Screen dispatch
+                switch (state) {
+                    case STATES.SPLASH:
+                        document.getElementById('splash-screen').classList.remove('hidden');
+                        break;
+                    case STATES.GAME_OVER:
+                        document.getElementById('gameover-screen').classList.remove('hidden');
+                        break;
+                    case STATES.WIN:
+                        document.getElementById('win-screen').classList.remove('hidden');
+                        break;
+                    case STATES.PHISHING_HOOK:
+                        document.getElementById('phishing-overlay').classList.remove('hidden');
+                        break;
+                }
+            }
+        };
+
+        // ─── § 11 INPUT HANDLERS ──────────────────────────────────────────
+        function onKeyDown(e) {
+            if (e.key === 'a' || e.key === 'A' || e.key === 'ArrowLeft') {
+                Player.changeLane(-1);
+            } else if (e.key === 'd' || e.key === 'D' || e.key === 'ArrowRight') {
+                Player.changeLane(1);
+            }
+        }
+
+        function onPointerDown(e) {
+            if (e.target.tagName.toLowerCase() === 'button') return;
+            const hw = window.innerWidth / 2;
+            if (e.clientX < hw) Player.changeLane(-1);
+            else Player.changeLane(1);
+        }
+
+        window.addEventListener('keydown', onKeyDown);
+        window.addEventListener('pointerdown', onPointerDown);
+
+        document.getElementById('btn-start').addEventListener('click', () => { AudioManager.startMusic(); GameState.setState(STATES.PLAYING); });
+        document.getElementById('btn-retry-fail').addEventListener('click', () => { resetGame(); AudioManager.startMusic(); GameState.setState(STATES.PLAYING); });
+        document.getElementById('btn-retry-win').addEventListener('click', () => { resetGame(); AudioManager.startMusic(); GameState.setState(STATES.PLAYING); });
+
+        function showCallResultBanner(text, color) {
+            const el = document.getElementById('call-result-banner');
+            el.textContent = text;
+            el.style.color = color;
+            el.classList.remove('hidden');
+            setTimeout(() => el.classList.add('hidden'), 1600);
+        }
+
+        // Very basic confetti setup for VPN collision points
+        // ─── § 12  EFFECTS ────────────────────────────────────────────────
+
+        // ─── § 12.1  CONFETTI POOL — InstancedMesh (Zero runtime allocation) ──
+        const ConfettiSystem = {
+            // Config
+            PER_BURST: 25,
+            MAX_BURSTS: 15,
+            LIFETIME: 1.5,
+
+            // Derived
+            get TOTAL() { return this.PER_BURST * this.MAX_BURSTS; },
+
+            // Geometry & Material
+            geo: new THREE.PlaneGeometry(0.12, 0.12),
+            mat: new THREE.MeshBasicMaterial({ transparent: true, side: THREE.DoubleSide }),
+
+            // Instanced mesh
+            instanced: null,
+            nextBurst: 0,
+            burstLife: null, // Float32Array, initialized in _initConfettiPool
+
+            // Particle state (position, velocity)
+            px: null, py: null, pz: null, // Float32Array
+            vx: null, vy: null, vz: null, // Float32Array
+
+            // Reusable objects (zero allocation during updates)
+            color: new THREE.Color(),
+            matrix: new THREE.Matrix4(),
+            quat: new THREE.Quaternion(),
+            pos: new THREE.Vector3(),
+            scale: new THREE.Vector3().setScalar(1)
+        };
+
+        // Initialize burstLife and particle arrays
+        ConfettiSystem.burstLife = new Float32Array(ConfettiSystem.MAX_BURSTS).fill(0);
+        ConfettiSystem.px = new Float32Array(ConfettiSystem.TOTAL);
+        ConfettiSystem.py = new Float32Array(ConfettiSystem.TOTAL);
+        ConfettiSystem.pz = new Float32Array(ConfettiSystem.TOTAL);
+        ConfettiSystem.vx = new Float32Array(ConfettiSystem.TOTAL);
+        ConfettiSystem.vy = new Float32Array(ConfettiSystem.TOTAL);
+        ConfettiSystem.vz = new Float32Array(ConfettiSystem.TOTAL);
+
+        function _initConfettiPool() {
+            ConfettiSystem.instanced = new THREE.InstancedMesh(ConfettiSystem.geo, ConfettiSystem.mat, ConfettiSystem.TOTAL);
+            ConfettiSystem.instanced.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+            ConfettiSystem.instanced.frustumCulled = false;
+
+            // Hide all instances
+            ConfettiSystem.matrix.makeScale(0, 0, 0);
+            for (let i = 0; i < ConfettiSystem.TOTAL; i++) {
+                ConfettiSystem.instanced.setMatrixAt(i, ConfettiSystem.matrix);
+            }
+            scene.add(ConfettiSystem.instanced);
+        }
+
+        function createConfetti(x, y, z) {
+            if (!ConfettiSystem.instanced) return;
+            const burst = ConfettiSystem.nextBurst;
+            ConfettiSystem.nextBurst = (ConfettiSystem.nextBurst + 1) % ConfettiSystem.MAX_BURSTS;
+            ConfettiSystem.burstLife[burst] = ConfettiSystem.LIFETIME;
+
+            const start = burst * ConfettiSystem.PER_BURST;
+            const colors = [0xF03E9F, 0x00E5FF, 0xFFD740];
+
+            for (let i = 0; i < ConfettiSystem.PER_BURST; i++) {
+                const idx = start + i;
+                ConfettiSystem.px[idx] = x; ConfettiSystem.py[idx] = y; ConfettiSystem.pz[idx] = z;
+                ConfettiSystem.vx[idx] = (Math.random() - 0.5) * 8;
+                ConfettiSystem.vy[idx] = Math.random() * 5 + 5;
+                ConfettiSystem.vz[idx] = (Math.random() - 0.5) * 8;
+
+                ConfettiSystem.color.setHex(colors[Math.floor(Math.random() * colors.length)]);
+                ConfettiSystem.instanced.setColorAt(idx, ConfettiSystem.color);
+            }
+            if (ConfettiSystem.instanced.instanceColor) ConfettiSystem.instanced.instanceColor.needsUpdate = true;
+        }
+
+        function updateConfetti(delta) {
+            if (!ConfettiSystem.instanced) return;
+            let anyActive = false;
+            const t = gameTimer;
+
+            for (let b = 0; b < ConfettiSystem.MAX_BURSTS; b++) {
+                if (ConfettiSystem.burstLife[b] <= 0) continue;
+                anyActive = true;
+                ConfettiSystem.burstLife[b] -= delta;
+
+                const opacity = Math.max(0, ConfettiSystem.burstLife[b] / ConfettiSystem.LIFETIME);
+                const start = b * ConfettiSystem.PER_BURST;
+
+                for (let i = 0; i < ConfettiSystem.PER_BURST; i++) {
+                    const idx = start + i;
+                    ConfettiSystem.vy[idx] -= 20 * delta;
+                    ConfettiSystem.px[idx] += ConfettiSystem.vx[idx] * delta;
+                    ConfettiSystem.py[idx] += ConfettiSystem.vy[idx] * delta;
+                    ConfettiSystem.pz[idx] += ConfettiSystem.vz[idx] * delta;
+
+                    if (ConfettiSystem.burstLife[b] <= 0) {
+                        ConfettiSystem.matrix.makeScale(0, 0, 0);
+                    } else {
+                        ConfettiSystem.pos.set(ConfettiSystem.px[idx], ConfettiSystem.py[idx], ConfettiSystem.pz[idx]);
+                        // Simple rotation for confetti
+                        ConfettiSystem.quat.setFromEuler(new THREE.Euler(t * 5 + idx, t * 3, 0));
+                        ConfettiSystem.scale.setScalar(opacity > 0.1 ? 1 : opacity * 10);
+                        ConfettiSystem.matrix.compose(ConfettiSystem.pos, ConfettiSystem.quat, ConfettiSystem.scale);
+                    }
+                    ConfettiSystem.instanced.setMatrixAt(idx, ConfettiSystem.matrix);
+                }
+            }
+            if (anyActive) ConfettiSystem.instanced.instanceMatrix.needsUpdate = true;
+        }
+
+        // ─── § 12.2  GOO EXPLOSION — InstancedMesh pool, zero runtime allocation ──
+        // Sprite texture — built once
+        const _gooSpriteTex = (() => {
+            const size = 64;
+            const cv = document.createElement('canvas');
+            cv.width = cv.height = size;
+            const c2 = cv.getContext('2d');
+            const g = c2.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+            g.addColorStop(0.0, 'rgba(220,255,130,1.0)');
+            g.addColorStop(0.3, 'rgba(57,255,20,0.9)');
+            g.addColorStop(0.7, 'rgba(0,160,30,0.4)');
+            g.addColorStop(1.0, 'rgba(0,60,0,0.0)');
+            c2.fillStyle = g;
+            c2.fillRect(0, 0, size, size);
+            return new THREE.CanvasTexture(cv);
+        })();
+
+        const GooSystem = {
+            // Config
+            PER_BURST: 28,
+            MAX_BURSTS: 4,
+            LIFETIME: 0.7,
+
+            // Derived
+            get TOTAL() { return this.PER_BURST * this.MAX_BURSTS; },
+
+            // Geometry & Materials
+            geo: new THREE.PlaneGeometry(1, 1),
+            mat: new THREE.MeshBasicMaterial({
+                map: _gooSpriteTex,
+                transparent: true,
+                depthWrite: false,
+                blending: THREE.AdditiveBlending,
+            }),
+            ringGeo: new THREE.RingGeometry(0.05, 0.18, 20),
+            ringMat: new THREE.MeshBasicMaterial({
+                color: 0x80ff60,
+                transparent: true,
+                depthWrite: false,
+                blending: THREE.AdditiveBlending,
+                side: THREE.DoubleSide,
+            }),
+
+            // Instanced mesh
+            instanced: null,
+            rings: [],      // GOO_MAX_BURSTS ring meshes
+            lights: [],     // GOO_MAX_BURSTS point lights
+
+            // Per-particle runtime state (Float32Arrays — no objects)
+            px: null, py: null, pz: null, // positions
+            vx: null, vy: null, vz: null, // velocities
+            scale: null,    // base scale
+            rotSpeed: null, // rotation speed
+            rot: null,      // current rotation z
+            active: null,   // active flag
+
+            // Per-burst state
+            burstLife: null,   // Float32Array
+            burstActive: null, // Uint8Array
+            burstSlot: null,   // Int32Array (start index in particle pool)
+
+            // Reusable objects (zero allocation during updates)
+            matrix: new THREE.Matrix4(),
+            quat: new THREE.Quaternion(),
+            pos: new THREE.Vector3(),
+            scale3D: new THREE.Vector3(),
+            color: new THREE.Color(0x39ff14),
+            scratchQuat: new THREE.Quaternion()
+        };
+
+        // Initialize arrays
+        GooSystem.px = new Float32Array(GooSystem.TOTAL);
+        GooSystem.py = new Float32Array(GooSystem.TOTAL);
+        GooSystem.pz = new Float32Array(GooSystem.TOTAL);
+        GooSystem.vx = new Float32Array(GooSystem.TOTAL);
+        GooSystem.vy = new Float32Array(GooSystem.TOTAL);
+        GooSystem.vz = new Float32Array(GooSystem.TOTAL);
+        GooSystem.scale = new Float32Array(GooSystem.TOTAL);
+        GooSystem.rotSpeed = new Float32Array(GooSystem.TOTAL);
+        GooSystem.rot = new Float32Array(GooSystem.TOTAL);
+        GooSystem.active = new Uint8Array(GooSystem.TOTAL);
+        GooSystem.burstLife = new Float32Array(GooSystem.MAX_BURSTS).fill(0);
+        GooSystem.burstActive = new Uint8Array(GooSystem.MAX_BURSTS).fill(0);
+        GooSystem.burstSlot = new Int32Array(GooSystem.MAX_BURSTS).fill(-1);
+
+        function _initGooPool() {
+            GooSystem.instanced = new THREE.InstancedMesh(GooSystem.geo, GooSystem.mat, GooSystem.TOTAL);
+            GooSystem.instanced.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+            GooSystem.instanced.frustumCulled = false;
+
+            // Hide all instances initially — scale to 0
+            GooSystem.matrix.identity();
+            GooSystem.scale3D.set(0, 0, 0);
+            for (let i = 0; i < GooSystem.TOTAL; i++) {
+                GooSystem.matrix.compose(GooSystem.pos.set(0, -999, 0), GooSystem.quat.identity(), GooSystem.scale3D);
+                GooSystem.instanced.setMatrixAt(i, GooSystem.matrix);
+                GooSystem.instanced.setColorAt(i, GooSystem.color);
+            }
+            GooSystem.instanced.instanceMatrix.needsUpdate = true;
+            scene.add(GooSystem.instanced);
+
+            for (let b = 0; b < GooSystem.MAX_BURSTS; b++) {
+                const ring = new THREE.Mesh(GooSystem.ringGeo, GooSystem.ringMat.clone());
+                ring.rotation.x = -Math.PI / 2;
+                ring.visible = false;
+                scene.add(ring);
+                GooSystem.rings.push(ring);
+
+                const light = new THREE.PointLight(0x39ff14, 0, 6.0);
+                scene.add(light);
+                GooSystem.lights.push(light);
+            }
+        }
+
+        function createGooExplosion(x, y, z) {
+            if (!GooSystem.instanced) return;
+
+            // Find a free burst slot
+            let burst = -1;
+            for (let b = 0; b < GooSystem.MAX_BURSTS; b++) {
+                if (!GooSystem.burstActive[b]) { burst = b; break; }
+            }
+            if (burst === -1) return; // all slots busy — skip
+
+            GooSystem.burstActive[burst] = 1;
+            GooSystem.burstLife[burst] = GooSystem.LIFETIME;
+            const start = burst * GooSystem.PER_BURST;
+            GooSystem.burstSlot[burst] = start;
+
+            // Flash light
+            GooSystem.lights[burst].position.set(x, y, z);
+            GooSystem.lights[burst].intensity = 8.0;
+
+            // Shockwave ring
+            GooSystem.rings[burst].position.set(x, y, z);
+            GooSystem.rings[burst].scale.setScalar(0.3);
+            GooSystem.rings[burst].material.opacity = 1.0;
+            GooSystem.rings[burst].visible = true;
+
+            // Init particle slots
+            for (let i = 0; i < GooSystem.PER_BURST; i++) {
+                const idx = start + i;
+                GooSystem.px[idx] = x; GooSystem.py[idx] = y; GooSystem.pz[idx] = z;
+                const theta = Math.random() * Math.PI * 2;
+                const phi = Math.random() * Math.PI;
+                const spd = 2.5 + Math.random() * 5.5;
+                GooSystem.vx[idx] = Math.sin(phi) * Math.cos(theta) * spd;
+                GooSystem.vy[idx] = Math.abs(Math.cos(phi)) * spd * 0.6 + Math.random() * 2.5;
+                GooSystem.vz[idx] = Math.sin(phi) * Math.sin(theta) * spd;
+                GooSystem.scale[idx] = 0.18 + Math.random() * 0.32;
+                GooSystem.rotSpeed[idx] = (Math.random() - 0.5) * 6;
+                GooSystem.rot[idx] = Math.random() * Math.PI * 2;
+                GooSystem.active[idx] = 1;
+            }
+        }
+
+        function updateGooExplosions(delta) {
+            if (!GooSystem.instanced) return;
+            let anyActive = false;
+
+            // Camera quaternion for billboarding
+            GooSystem.quat.copy(camera.quaternion);
+
+            for (let b = 0; b < GooSystem.MAX_BURSTS; b++) {
+                if (!GooSystem.burstActive[b]) continue;
+                anyActive = true;
+
+                GooSystem.burstLife[b] -= delta;
+                const t = Math.max(0, GooSystem.burstLife[b] / GooSystem.LIFETIME); // 1→0
+                const tInv = 1 - t;
+
+                // Light
+                GooSystem.lights[b].intensity = t * t * 8.0;
+
+                // Ring
+                const ring = GooSystem.rings[b];
+                ring.scale.setScalar(0.3 + tInv * 3.5);
+                ring.material.opacity = t * t;
+
+                // Opacity driven by time — shared material cloned per burst
+                // We encode opacity via instance color alpha trick: use color brightness
+                const brightness = Math.pow(t, 0.5);
+
+                const start = GooSystem.burstSlot[b];
+                for (let i = 0; i < GooSystem.PER_BURST; i++) {
+                    const idx = start + i;
+
+                    // Physics
+                    GooSystem.vy[idx] -= 14 * delta;
+                    GooSystem.px[idx] += GooSystem.vx[idx] * delta;
+                    GooSystem.py[idx] += GooSystem.vy[idx] * delta;
+                    GooSystem.pz[idx] += GooSystem.vz[idx] * delta;
+                    GooSystem.vx[idx] *= 1 - delta * 2.5;
+                    GooSystem.vz[idx] *= 1 - delta * 2.5;
+                    GooSystem.rot[idx] += GooSystem.rotSpeed[idx] * delta;
+
+                    const scaleCurve = t > 0.15 ? (1 - tInv * 0.3) : t * 1.2;
+                    const s = Math.max(0, GooSystem.scale[idx] * scaleCurve);
+
+                    GooSystem.pos.set(GooSystem.px[idx], GooSystem.py[idx], GooSystem.pz[idx]);
+                    GooSystem.scale3D.setScalar(s);
+
+                    // Bake rotation into scratch quaternion (billboard * z-rot)
+                    const halfRot = GooSystem.rot[idx] * 0.5;
+                    const sinR = Math.sin(halfRot), cosR = Math.cos(halfRot);
+
+                    // Combine camera quaternion with local z-spin (rx, ry, rz, rw)
+                    const { x: cx, y: cy, z: cz, w: cw } = GooSystem.quat;
+                    GooSystem.scratchQuat.set(
+                        cx * cosR + cy * sinR,
+                        cy * cosR - cx * sinR,
+                        cz * cosR + cw * sinR,
+                        cw * cosR - cz * sinR
+                    );
+
+                    GooSystem.matrix.compose(GooSystem.pos, GooSystem.scratchQuat, GooSystem.scale3D);
+                    GooSystem.instanced.setMatrixAt(idx, GooSystem.matrix);
+
+                    // Fade via color brightness
+                    GooSystem.instanced.setColorAt(idx, GooSystem.color.setRGB(
+                        brightness * 0.86,
+                        brightness * 1.0,
+                        brightness * 0.08
+                    ));
+                }
+
+                if (GooSystem.burstLife[b] <= 0) {
+                    GooSystem.burstActive[b] = 0;
+                    GooSystem.rings[b].visible = false;
+                    GooSystem.lights[b].intensity = 0;
+                    // Hide instances
+                    GooSystem.scale3D.set(0, 0, 0);
+                    GooSystem.pos.set(0, -999, 0);
+                    GooSystem.matrix.compose(GooSystem.pos, GooSystem.quat, GooSystem.scale3D);
+                    const start2 = GooSystem.burstSlot[b];
+                    for (let i = 0; i < GooSystem.PER_BURST; i++) {
+                        GooSystem.instanced.setMatrixAt(start2 + i, GooSystem.matrix);
+                    }
+                }
+            }
+
+            if (anyActive) {
+                GooSystem.instanced.instanceMatrix.needsUpdate = true;
+                if (GooSystem.instanced.instanceColor) GooSystem.instanced.instanceColor.needsUpdate = true;
+            }
+        }
+
+        // ─── § 13 GAME LOOP ───────────────────────────────────────────────
+        // Depends: § 4 (all systems), § 6 (corridor), § 7 (player), § 8 (enemies), § 9 (collision), § 10 (HUD), § 12 (effects)
+
+        // Helper: Update world parallax (tunnel, portal, signs, crowd scrolling)
+        function _updateWorldParallax(moveDist) {
+            const TILE_Z = 60;
+            const TOTAL_Z = TILE_Z * tunnelTiles.length;
+            if (tunnelTiles && tunnelTiles.length > 0) {
+                for (const tile of tunnelTiles) {
+                    tile.position.z += moveDist;
+                    if (tile.position.z >= camera.position.z + TILE_Z) {
+                        tile.position.z -= TOTAL_Z;
+                    }
+                }
+            }
+            if (_portalGroup) {
+                _portalGroup.position.z += moveDist;
+            }
+            if (typeof wallSignMeshes !== 'undefined') {
+                wallSignMeshes.forEach(m => {
+                    m.position.z += moveDist;
+                    if (m.position.z > 20) m.position.z -= 80;
+                });
+            }
+            crowdBodies.forEach(b => {
+                b.position.z += moveDist;
+                if (b.position.z > 20) b.position.z -= 80;
+            });
+            PartyCrowd.scroll(moveDist);
+        }
+
+        // Helper: Render frame (with or without post-processing)
+        function _renderFrame() {
+            if (composer) {
+                if (outlinePass) {
+                    outlinePass.selectedObjects = scene.children.filter(c =>
+                        !c.isSky &&
+                        c.type !== 'PointLight' &&
+                        c.type !== 'DirectionalLight' &&
+                        c.type !== 'AmbientLight' &&
+                        c.type !== 'LineSegments'
+                    );
+                }
+                try {
+                    renderer.info.autoReset = false;
+                    renderer.info.reset();
+                    composer.render();
+                } catch (e) {
+                    const el = document.getElementById('error-log');
+                    if (el) el.innerText = e.message + "\\n" + e.stack;
+                }
+            } else {
+                renderer.info.autoReset = true;
+                renderer.render(scene, camera);
+            }
+        }
+
+        function update(time) {
+            requestAnimationFrame(update);
+            const delta = (time - lastTime) / 1000;
+            lastTime = time;
+
+            if (delta > 0.1 || isNaN(delta)) return; // Avoid large skips, skip first frame
+
+            if (GameState.is(STATES.PHISHING_HOOK)) {
+                // Popup open — only tick phishing timer
+                PhishingHookSystem.update(delta);
+            } else {
+                if (Player && Player.update) Player.update(delta);
+                if (EnemyManager && EnemyManager.update) EnemyManager.update(delta);
+                PhishingHookSystem.update(delta);
+            }
+
+            if (SpeedLinesVisuals && SpeedLinesVisuals.update) SpeedLinesVisuals.update(delta);
+
+            if (cameraShakeFrames > 0) {
+                camera.position.x = (Math.random() - 0.5) * cameraShakeAmp;
+                cameraShakeFrames--;
+            } else {
+                camera.position.x = 0;
+            }
+
+            // Crowd dancing bob
+            if (GameState.isPlaying()) {
+                crowdBodies.forEach(b => {
+                    b.position.y = b.userData.baseY + Math.sin(gameTimer * 2.5 + b.userData.phase) * 0.18;
+                });
+            }
+
+            // Party crowd silhouettes
+            PartyCrowd.update(delta);
+
+            // Portal force-field pulse (visible from t > 50s)
+            if (_portalMat) {
+                _portalMat.uniforms.uTime.value = gameTimer;
+                const approach = Math.max(0, (gameTimer - 50) / 10); // 0→1 over last 10s
+                _portalMat.uniforms.uIntensity.value = approach;
+                const pulse = 0.6 + Math.sin(gameTimer * 6) * 0.4;
+                _portalMat.uniforms.uPulse.value = pulse;
+                // Sync arch tube + banner opacity
+                if (_portalMat.userData.archTubeMat)
+                    _portalMat.userData.archTubeMat.opacity = approach * pulse;
+                if (_portalMat.userData.bannerMat)
+                    _portalMat.userData.bannerMat.opacity = approach;
+            }
+            if (_portalLight && gameTimer > 50) {
+                const approach = Math.max(0, (gameTimer - 50) / 10);
+                _portalLight.intensity = approach * (3.5 + Math.sin(gameTimer * 8) * 1.5);
+            }
+
+            if (GameState.isPlaying()) {
+                if (!Player.group) return; // Wait for player model to load
+                const dy = getEnemySpeed() * 12 * delta;
+                activeFloorMaps.forEach(map => map.offset.y += dy);
+
+                // Animate Clouds
+                if (sky) sky.material.uniforms.time.value += delta;
+
+                // --- Parallax Environment Translation ---
+                const moveDist = (dy / 20) * 60; // Exact match to Enemy speed (baseSpeed * 60)
+                _updateWorldParallax(moveDist);
+
+                gameTimer += delta;
+                if (HUD && HUD.update) HUD.update();
+                checkCollisions();
+                if (VPNSystem && VPNSystem.update) VPNSystem.update(delta);
+
+                if (!CONFIG.infiniteTime && gameTimer >= CONFIG.gameDuration) {
+                    GameState.setState(STATES.WIN);
+                }
+
+                if (GameState.is(STATES.HIT_STUN)) {
+                    hitStunTimer -= delta;
+                    Player._setOpacity((Math.floor(time / 100) % 2 === 0) ? 0.3 : 1.0);
+                    if (hitStunTimer <= 0) {
+                        Player._setOpacity(1.0);
+                        GameState.setState(STATES.PLAYING);
+                    }
+                }
+            } else if (GameState.is(STATES.VPN_SEQ)) {
+                if (VPNSystem && VPNSystem.update) VPNSystem.update(delta); // Advance the cinematic timer
+            }
+
+            // Update Confetti
+            updateConfetti(delta);
+
+            // Update goo explosions (virus kill VPN effect)
+            updateGooExplosions(delta);
+
+            // Render scene
+            _renderFrame();
+        }
+
+        function onWindowResize() {
+            let w = window.innerWidth;
+            let h = window.innerHeight;
+            const targetAspect = 9 / 16;
+
+            if (w / h > targetAspect) {
+                // Pillarbox: Window is wider than 9:16 target
+                container.style.width = (h * targetAspect) + 'px';
+                container.style.height = h + 'px';
+            } else {
+                // Letterbox: Window is narrower than 9:16 target
+                container.style.width = w + 'px';
+                container.style.height = (w / targetAspect) + 'px';
+            }
+
+            camera.aspect = targetAspect;
+            camera.updateProjectionMatrix();
+            renderer.setSize(container.clientWidth, container.clientHeight);
+            if (composer) composer.setSize(container.clientWidth, container.clientHeight);
+            if (outlinePass) outlinePass.resolution.set(container.clientWidth, container.clientHeight);
+        }
+
+        function resetGame() {
+            gameTimer = 0;
+            hitStunTimer = 0;
+            AudioManager.stopMusic();
+            Player.reset();
+            EnemyManager.reset();
+            ScoreSystem.reset();
+            VPNSystem.reset();
+            PhishingHookSystem.reset();
+            PartyCrowd.reset();
+            document.getElementById('crack-canvas').style.display = 'none';
+        }
+
+        // ─── § 14 SCREEN HANDLERS ─────────────────────────────────────────
+        function onEnterSplash() {
+            HUD.showScreen(STATES.SPLASH);
+        }
+        function onEnterPlaying() {
+            HUD.showScreen(STATES.PLAYING);
+            Player._setOpacity(1.0);
+        }
+        function onEnterHitStun() {
+            // Logic handled in update()
+        }
+        function onEnterGameOver() {
+            HUD.showScreen(STATES.GAME_OVER);
+            ScoreSystem.savePersonalBest();
+            AudioManager.stopMusic();
+            AudioManager.playGameOver();
+
+            // Set texts
+            const subs = [
+                "Unprotected browsing is no party.",
+                "Should've worn a Partyhat.",
+                "That's what happens on sketchy Wi-Fi.",
+                "Your private parts are leaking. Ew.",
+                "Next time, always wear protection."
+            ];
+            document.getElementById('gameover-subhead').textContent = subs[Math.floor(Math.random() * subs.length)];
+            document.getElementById('go-score').textContent = ScoreSystem.score;
+            document.getElementById('go-killer').textContent = Player.lastHitBy;
+
+            // Draw crack
+            const cvs = document.getElementById('crack-canvas');
+            cvs.style.display = 'block';
+            cvs.width = window.innerWidth;
+            cvs.height = window.innerHeight;
+            const ctx = cvs.getContext('2d');
+            ctx.strokeStyle = 'rgba(255,255,255,0.8)';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            const cx = window.innerWidth / 2; const cy = window.innerHeight * 0.7;
+            for (let i = 0; i < 5; i++) {
+                let x = cx; let y = cy;
+                let angle = Math.random() * Math.PI * 2;
+                for (let j = 0; j < 4; j++) {
+                    ctx.moveTo(x, y);
+                    x += Math.cos(angle) * (50 + Math.random() * 100);
+                    y += Math.sin(angle) * (50 + Math.random() * 100);
+                    ctx.lineTo(x, y);
+                    angle += (Math.random() - 0.5);
+                }
+            }
+            ctx.stroke();
+        }
+        function onEnterWin() {
+            HUD.showScreen(STATES.WIN);
+            ScoreSystem.savePersonalBest();
+            AudioManager.stopMusic();
+            AudioManager.playWinFanfare();
+
+            document.getElementById('win-score').textContent = ScoreSystem.score;
+            let rank = 'C';
+            if (ScoreSystem.score >= 2000) rank = 'S';
+            else if (ScoreSystem.score >= 1200) rank = 'A';
+            else if (ScoreSystem.score >= 700) rank = 'B';
+            document.getElementById('win-rank').textContent = rank;
+
+            // Win Confetti Rain handled in loop? Easiest to just trigger via DOM or let existing particle loop handle it.
+            for (let i = 0; i < 80; i++) {
+                createConfetti((Math.random() - 0.5) * 10, 8, (Math.random() - 0.5) * 10);
+            }
+        }
+
+        // ─── § 15 ENVIRONMENT ─────────────────────────────────────────────
+        const wallSignMeshes = [];
+
+        function createWallSign(line1, line2, sub, x, y, z, rotY) {
+            const c = document.createElement('canvas');
+            c.width = 512; c.height = 256;
+            const ctx = c.getContext('2d');
+            ctx.fillStyle = '#12002a';
+            ctx.fillRect(0, 0, 512, 256);
+            ctx.strokeStyle = '#ffcc00';
+            ctx.lineWidth = 8;
+            ctx.strokeRect(6, 6, 500, 244);
+            ctx.strokeStyle = 'rgba(255,200,0,0.3)';
+            ctx.lineWidth = 3;
+            ctx.strokeRect(14, 14, 484, 228);
+            ctx.fillStyle = '#ffffff';
+            ctx.font = 'bold 54px Arial Black, Impact, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText(line1, 256, 90);
+            ctx.fillText(line2, 256, 152);
+            ctx.fillStyle = '#ffcc00';
+            ctx.font = 'bold 26px Arial, sans-serif';
+            ctx.fillText(sub, 256, 210);
+            const tex = new THREE.CanvasTexture(c);
+            const geo = new THREE.PlaneGeometry(5, 2.5);
+            const mat = new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide });
+            const mesh = new THREE.Mesh(geo, mat);
+            mesh.name = `WallSign_${line1}`;
+            mesh.position.set(x, y, z);
+            mesh.rotation.y = rotY;
+            scene.add(mesh);
+            wallSignMeshes.push(mesh);
+        }
+
+        function createWallSigns() {
+            createWallSign('SKETCHY', 'PUBLIC WI-FI', 'Always Wear Protection', -4.75, 4.5, -14, Math.PI / 2);
+            createWallSign('SKETCHY', 'PUBLIC WI-FI', 'Tap Any Link You Want™', -4.75, 4.5, -34, Math.PI / 2);
+            createWallSign('SKETCHY', 'PUBLIC WI-FI', 'Your Boss Is Watching', 4.75, 4.5, -10, -Math.PI / 2);
+            createWallSign('SKETCHY', 'PUBLIC WI-FI', 'Military-Grade Protection', 4.75, 4.5, -30, -Math.PI / 2);
+        }
+
+        const crowdBodies = [];
+        function createCrowd() {
+            const darkMat = new THREE.MeshBasicMaterial({ color: 0x040010 });
+            const slightlyLighter = new THREE.MeshBasicMaterial({ color: 0x07001a });
+            const figures = [
+                [-7.5, 2.5, -8, 1.1, 3.2], [-8.5, 3.0, -14, 0.9, 3.8],
+                [-7.2, 2.3, -20, 1.2, 3.0], [-8.0, 2.8, -26, 1.0, 3.6],
+                [-7.5, 2.5, -32, 1.1, 3.2], [-8.8, 3.0, -38, 0.9, 4.0],
+                [7.5, 2.5, -6, 1.1, 3.2], [8.5, 3.0, -12, 0.9, 3.8],
+                [7.2, 2.3, -18, 1.2, 3.0], [8.0, 2.8, -24, 1.0, 3.6],
+                [7.5, 2.5, -30, 1.1, 3.2], [8.8, 3.0, -36, 0.9, 4.0],
+            ];
+            figures.forEach(([x, y, z, w, h], i) => {
+                const body = new THREE.Mesh(new THREE.BoxGeometry(w, h, 0.1), darkMat);
+                body.name = `CrowdBody_${i}`;
+                body.position.set(x, y, z);
+                body.userData.baseY = y;
+                body.userData.phase = i * 0.8;
+                scene.add(body);
+                crowdBodies.push(body);
+
+                const head = new THREE.Mesh(new THREE.SphereGeometry(w * 0.44, 6, 6), slightlyLighter);
+                head.name = `CrowdHead_${i}`;
+                head.position.set(x, y + h / 2 + w * 0.4, z);
+                head.userData.baseY = y + h / 2 + w * 0.4;
+                head.userData.phase = i * 0.8 + 0.1;
+                scene.add(head);
+                crowdBodies.push(head);
+            });
+        }
+
+        // ─── § 15.1  WALL SIGNS ───────────────────────────────────────────
+
+        // ─── § 15.2  CROWD SYSTEM ────────────────────────────────────────
+
+        // ─── § 15.2b  PARTY CROWD SYSTEM ──────────────────────────────────
+        // Silhouettes from card_people.png sprite sheet (5 cols × 4 rows = 20 figures).
+        // Hidden until VPN is collected — then fade in + dance bob + confetti burst.
+        const PartyCrowd = {
+            figures: [],        // { mesh, baseY, phase, side, confetti }
+            confettiMeshes: [], // shared confetti pool
+            active: false,
+            fadeTimer: 0,
+            FADE_DURATION: 1.2,
+            fadingOut: false,
+            fadeOutTimer: 0,
+            FADE_OUT_DURATION: 0.8,
+
+            init() {
+                const loader = new THREE.TextureLoader();
+                const sheet = loader.load(CARD_PEOPLE_B64);
+                sheet.colorSpace = THREE.SRGBColorSpace;
+
+                // Sprite sheet: 3 columns x 2 rows = 6 unique characters
+                const COLS = 3, ROWS = 2;
+                const cellW = 1 / COLS, cellH = 1 / ROWS;
+
+                // Use 18 figure instances, cycling through the 6 characters (3x2 grid)
+                const cells = [];
+                for (let i = 0; i < 18; i++) {
+                    const actorIdx = i % 6;
+                    const row = Math.floor(actorIdx / COLS);
+                    const col = actorIdx % COLS;
+                    cells.push([row, col]);
+                }
+
+                // Figures positioned on the sidewalk edges (x≈±2.8..3.4)
+                // just inside the walls but on the raised sidewalk.
+                // Z offsets relative to player (z=8): spread from z=5 backward to z=-50
+                // so they're visible along the corridor when VPN triggers.
+                const count = Math.min(cells.length, 18);
+                for (let i = 0; i < count; i++) {
+                    const side = i % 2 === 0 ? -1 : 1;
+                    // Sidewalk centre x=±2.5, width=1.5 → figures stand at x≈±2.5
+                    // Slight random offset within sidewalk width (±0.4)
+                    const xBase = side * (2.5 + (Math.random() - 0.5) * 0.6);
+                    const zOffset = -(i * 3.5) - 2;
+                    const z = 8 + zOffset;
+
+                    const [row, col] = cells[i];
+                    const tex = sheet.clone();
+                    tex.needsUpdate = true;
+                    tex.repeat.set(cellW, cellH);
+                    tex.offset.set(col * cellW, 1 - (row + 1) * cellH);
+
+                    const mat = new THREE.MeshBasicMaterial({
+                        map: tex,
+                        transparent: true,
+                        alphaTest: 0.1,
+                        opacity: 0.0,
+                        depthWrite: false,
+                        side: THREE.DoubleSide,
+                    });
+
+                    const geo = new THREE.PlaneGeometry(1.2, 2.4);
+                    const mesh = new THREE.Mesh(geo, mat);
+
+                    // Sidewalk top y=0.1, figure height=2.4, centre at y=0.1+1.2=1.3
+                    const baseY = 1.3;
+                    mesh.position.set(xBase, baseY, z);
+                    // Faces +Z by default. Tilt slightly inward toward corridor centre.
+                    mesh.rotation.y = side > 0 ? -0.3 : 0.3;
+                    mesh.visible = false;
+                    scene.add(mesh);
+
+                    this.figures.push({
+                        mesh,
+                        baseY,
+                        phase: i * 0.55 + Math.random() * 0.5,
+                        side,
+                        baseX: xBase,
+                        baseZ: z,
+                    });
+                }
+
+                // Confetti: small coloured planes that shoot up and fall
+                const confettiColors = [0x00ff44, 0xffff00, 0xff44ff, 0x44ffff, 0xff8800];
+                const confettiGeo = new THREE.PlaneGeometry(0.1, 0.2);
+                for (let i = 0; i < 80; i++) {
+                    const mat = new THREE.MeshBasicMaterial({
+                        color: confettiColors[i % confettiColors.length],
+                        transparent: true, opacity: 0.0, depthWrite: false,
+                        side: THREE.DoubleSide,
+                    });
+                    const m = new THREE.Mesh(confettiGeo, mat);
+                    m.visible = false;
+                    m.userData.vel = new THREE.Vector3();
+                    m.userData.life = 0;
+                    scene.add(m);
+                    this.confettiMeshes.push(m);
+                }
+            },
+
+            // Called by VPNSystem.activate()
+            trigger() {
+                if (this.active) return;
+                this.active = true;
+                this.fadeTimer = 0;
+
+                // Reposition figures around current player position so they're
+                // immediately visible along the corridor on both sides
+                const playerZ = (Player && Player.group) ? Player.group.position.z : 8;
+                this.figures.forEach((f, i) => {
+                    const side = f.side;
+                    const zBase = playerZ - 2 - i * 3.2;
+                    f.baseZ = zBase;
+                    f.mesh.position.z = zBase;
+                    f.mesh.position.y = f.baseY;
+                    f.mesh.visible = true;
+                });
+
+                // Launch confetti burst around each figure
+                let ci = 0;
+                this.figures.forEach(f => {
+                    for (let k = 0; k < 4 && ci < this.confettiMeshes.length; k++, ci++) {
+                        const c = this.confettiMeshes[ci];
+                        c.position.set(
+                            f.baseX + (Math.random() - 0.5) * 2,
+                            f.baseY + 0.5,
+                            f.baseZ + (Math.random() - 0.5) * 1
+                        );
+                        c.userData.vel.set(
+                            (Math.random() - 0.5) * 3,
+                            2.5 + Math.random() * 3,
+                            (Math.random() - 0.5) * 1.5
+                        );
+                        c.userData.life = 1.0 + Math.random() * 0.8;
+                        c.material.opacity = 0.9;
+                        c.visible = true;
+                    }
+                });
+            },
+
+            fadeOut() {
+                this.fadingOut = true;
+                this.fadeOutTimer = 0;
+            },
+
+            update(delta) {
+                if (!this.active && !this.fadingOut && this.figures.length === 0) return;
+
+                // Fade out when VPN ends
+                if (this.fadingOut) {
+                    this.fadeOutTimer += delta;
+                    const t = 1.0 - Math.min(this.fadeOutTimer / this.FADE_OUT_DURATION, 1.0);
+                    this.figures.forEach(f => {
+                        f.mesh.material.opacity = t;
+                        if (t <= 0) f.mesh.visible = false;
+                    });
+                    if (this.fadeOutTimer >= this.FADE_OUT_DURATION) {
+                        this.fadingOut = false;
+                        this.active = false;
+                    }
+                    return; // skip other updates during fade out
+                }
+
+                // Fade in
+                if (this.active && this.fadeTimer < this.FADE_DURATION) {
+                    this.fadeTimer += delta;
+                    const t = Math.min(this.fadeTimer / this.FADE_DURATION, 1.0);
+                    this.figures.forEach(f => {
+                        f.mesh.material.opacity = t;
+                    });
+                }
+
+                // Dance bob + sway when active
+                if (this.active) {
+                    this.figures.forEach(f => {
+                        const bob = Math.sin(gameTimer * 4.5 + f.phase) * 0.12;
+                        const sway = Math.sin(gameTimer * 2.2 + f.phase) * 0.05;
+                        f.mesh.position.y = f.baseY + bob;
+                        f.mesh.rotation.z = sway;
+                    });
+                }
+
+                // Confetti physics
+                this.confettiMeshes.forEach(c => {
+                    if (!c.visible) return;
+                    c.userData.life -= delta;
+                    if (c.userData.life <= 0) {
+                        c.visible = false;
+                        c.material.opacity = 0;
+                        return;
+                    }
+                    c.userData.vel.y -= 4.5 * delta; // gravity
+                    c.position.addScaledVector(c.userData.vel, delta);
+                    c.rotation.z += delta * 5;
+                    c.material.opacity = Math.max(0, c.userData.life * 0.7);
+                });
+            },
+
+            // Scroll figures + confetti with world
+            scroll(moveDist) {
+                this.figures.forEach(f => {
+                    f.baseZ += moveDist;
+                    f.mesh.position.z = f.baseZ;
+                    if (f.baseZ > 22) f.baseZ -= 80;
+                });
+                this.confettiMeshes.forEach(c => {
+                    if (c.visible) c.position.z += moveDist;
+                });
+            },
+
+            reset() {
+                this.active = false;
+                this.fadingOut = false;
+                this.fadeTimer = 0;
+                this.fadeOutTimer = 0;
+                this.figures.forEach(f => {
+                    f.mesh.visible = false;
+                    f.mesh.material.opacity = 0;
+                    f.mesh.rotation.z = 0;
+                });
+                this.confettiMeshes.forEach(c => {
+                    c.visible = false;
+                    c.material.opacity = 0;
+                });
+            },
+        };
+
+        let _portalMat = null, _portalLight = null, _portalGroup = null;
+
+        // ─── § 15.3  FINISH LINE ──────────────────────────────────────────
+        function createFinishLine() {
+            // ── Portal force-field: arch spanning full tunnel opening (7 wide × 6.5 tall) ──
+            // The group moves with the world (moveDist each frame).
+            // Initial Z is calculated so the portal arrives at player Z (~8) at t=60s.
+            // Total world scroll over 60s ≈ 360 units (integral of speed*36 dt).
+            // Portal starts at playerZ - 360 = 8 - 360 = -352, arrives at ~z=8 at t=60.
+            // We place it 15 units ahead of player at arrival: targetZ = 8 - 15 = -7.
+            // So initialZ = -7 - 360 = -367.
+            const PORTAL_INITIAL_Z = -367;
+
+            _portalMat = new THREE.ShaderMaterial({
+                uniforms: {
+                    uTime: { value: 0.0 },
+                    uIntensity: { value: 0.0 }, // 0→1 as player approaches
+                    uPulse: { value: 1.0 },
+                },
+                vertexShader: `
+                    varying vec2 vUv;
+                    void main() {
+                        vUv = uv;
+                        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                    }
+                `,
+                fragmentShader: `
+                    uniform float uTime;
+                    uniform float uIntensity;
+                    uniform float uPulse;
+                    varying vec2 vUv;
+
+                    #define PI 3.14159265
+
+                    // Pseudo-random
+                    float hash(vec2 p) {
+                        return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+                    }
+
+                    // Hexagonal grid distance
+                    float hexDist(vec2 p) {
+                        p = abs(p);
+                        return max(dot(p, normalize(vec2(1.0, 1.732))), p.x);
+                    }
+
+                    vec2 hexCoord(vec2 uv) {
+                        vec2 r = vec2(1.0, 1.732);
+                        vec2 h = r * 0.5;
+                        vec2 a = mod(uv, r) - h;
+                        vec2 b = mod(uv - h, r) - h;
+                        return dot(a,a) < dot(b,b) ? a : b;
+                    }
+
+                    void main() {
+                        // Map UV to centred coords: x in [-1,1], y in [0,1]
+                        vec2 uv = vUv;
+                        vec2 p  = vec2((uv.x - 0.5) * 2.0, uv.y); // x:-1..1, y:0..1
+
+                        // ── Arch mask ──────────────────────────────────────────────────
+                        // Arch shape: ellipse from floor (y=0) to ceiling (y=1)
+                        // arch centre at y=0, half-axes: rx=1 (covers full width), ry=1
+                        float rx = 0.95, ry = 1.02;
+                        float archDist = length(vec2(p.x / rx, (p.y - 0.0) / ry));
+
+                        // Ring: between inner=0.82 and outer=1.0
+                        float ringInner = 0.84;
+                        float ringOuter = 1.00;
+                        float inRing    = step(ringInner, archDist) * step(archDist, ringOuter);
+                        float inField   = step(archDist, ringInner);
+
+                        // ── Hex circuit on the ring ────────────────────────────────────
+                        vec2 hexUV = p * 8.0;
+                        hexUV.y += uTime * 0.5;
+                        vec2 hc   = hexCoord(hexUV);
+                        float hd  = hexDist(hc);
+                        float hexLine = smoothstep(0.48, 0.42, hd);
+                        // Node glow at hex intersections
+                        float nodeGlow = smoothstep(0.12, 0.0, length(hc));
+
+                        // Ring colour: cyan base with green tint, pulsing
+                        vec3 ringCol = mix(
+                            vec3(0.0, 0.9, 0.5),
+                            vec3(0.0, 1.0, 0.8),
+                            hexLine
+                        );
+                        ringCol += vec3(0.0, 0.4, 0.2) * nodeGlow;
+                        ringCol *= uPulse;
+
+                        // ── Inner energy field ─────────────────────────────────────────
+                        // Polar coords for swirl
+                        float angle = atan(p.y, p.x);
+                        float r     = length(vec2(p.x / rx, p.y / ry)) / ringInner; // 0=centre,1=ring
+
+                        // Concentric scan rings rippling inward
+                        float scanRings = sin(r * 14.0 - uTime * 3.5) * 0.5 + 0.5;
+                        scanRings = pow(scanRings, 3.0);
+
+                        // Rotating spokes
+                        float spoke = sin(angle * 6.0 + uTime * 1.2) * 0.5 + 0.5;
+                        spoke = pow(spoke, 6.0);
+
+                        // Noise flicker
+                        float flicker = hash(vec2(floor(r * 12.0), floor(uTime * 15.0)));
+
+                        float fieldEnergy = (scanRings * 0.5 + spoke * 0.3 + flicker * 0.2)
+                                          * (1.0 - r * 0.6); // fade toward edge
+
+                        vec3 fieldCol = mix(
+                            vec3(0.0, 0.15, 0.1),
+                            vec3(0.0, 0.85, 0.45),
+                            fieldEnergy
+                        );
+                        // Add bright centre core
+                        float core = smoothstep(0.25, 0.0, r) * 0.6;
+                        fieldCol += vec3(0.5, 1.0, 0.8) * core;
+                        fieldCol *= uPulse * 0.85;
+
+                        // ── Edge glow bleeding outside ring ───────────────────────────
+                        float outerGlow = smoothstep(1.2, ringOuter, archDist)
+                                        * (1.0 - smoothstep(ringOuter, 1.2, archDist));
+                        vec3 glowCol = vec3(0.0, 1.0, 0.55) * outerGlow * uPulse * 0.6;
+
+                        // ── Compose ────────────────────────────────────────────────────
+                        vec3 col  = ringCol  * inRing
+                                  + fieldCol * inField
+                                  + glowCol;
+                        float alpha = (inRing + inField * 0.82 + outerGlow * 0.4) * uIntensity;
+                        alpha = clamp(alpha, 0.0, 1.0);
+
+                        gl_FragColor = vec4(col, alpha);
+                    }
+                `,
+                transparent: true,
+                depthWrite: false,
+                side: THREE.DoubleSide,
+            });
+
+            // ── Group: moves with world scroll (moveDist each frame) ──────────────
+            _portalGroup = new THREE.Group();
+            _portalGroup.position.z = PORTAL_INITIAL_Z;
+            scene.add(_portalGroup);
+
+            // Plane sized to fill the tunnel opening: 7 wide × 6.7 tall
+            const portalGeo = new THREE.PlaneGeometry(7.2, 6.7);
+            const portalMesh = new THREE.Mesh(portalGeo, _portalMat);
+            portalMesh.name = 'Portal';
+            portalMesh.position.set(0, 3.35, 0);
+            _portalGroup.add(portalMesh);
+
+            // Thin glowing arch frame (torus-like ring using a tube)
+            const archCurve = new THREE.EllipseCurve(0, 0, 3.4, 3.35, 0, Math.PI, false, 0);
+            const archPoints = archCurve.getPoints(64);
+            const archShape = new THREE.CatmullRomCurve3(
+                archPoints.map(p => new THREE.Vector3(p.x, p.y, 0))
+            );
+            const tubeGeo = new THREE.TubeGeometry(archShape, 64, 0.08, 8, false);
+            const tubeMat = new THREE.MeshBasicMaterial({
+                color: 0x00ffcc,
+                transparent: true,
+                opacity: 0.0,
+            });
+            const archTube = new THREE.Mesh(tubeGeo, tubeMat);
+            archTube.name = 'PortalArch';
+            archTube.position.set(0, 0, 0.05);
+            _portalGroup.add(archTube);
+
+            // Cyan point light for environmental glow
+            _portalLight = new THREE.PointLight(0x00ffcc, 0, 18);
+            _portalLight.position.set(0, 3.5, 1);
+            _portalGroup.add(_portalLight);
+
+            // Store for intensity sync
+            _portalMat.userData.archTubeMat = tubeMat;
+
+            // Banner canvas (PARTYHAT branding)
+            const c = document.createElement('canvas');
+            c.width = 256; c.height = 128;
+            const ctx = c.getContext('2d');
+            ctx.clearRect(0, 0, 256, 128);
+            ctx.fillStyle = '#00ffcc';
+            ctx.font = 'bold 36px Arial Black, Impact, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('FINISH', 128, 52);
+            ctx.font = 'bold 16px Arial, sans-serif';
+            ctx.fillStyle = '#aaffee';
+            ctx.fillText('getpartyhat.com', 128, 80);
+            const bannerTex = new THREE.CanvasTexture(c);
+            const bannerMat = new THREE.MeshBasicMaterial({
+                map: bannerTex, transparent: true, opacity: 0.0, depthWrite: false
+            });
+            const bannerMesh = new THREE.Mesh(new THREE.PlaneGeometry(4.0, 2.0), bannerMat);
+            bannerMesh.position.set(0, 4.2, 0.1);
+            _portalGroup.add(bannerMesh);
+            _portalMat.userData.bannerMat = bannerMat;
+        }
+
+        // ─── § 16 DEV PANEL ───────────────────────────────────────────────
+        function setupDevPanel() {
+            if (!DEV_MODE) return;
+            const gui = new GUI({ title: '⚙️ Dev Controls' });
+
+            const gameFolder = gui.addFolder('Game Flow');
+            gameFolder.add(CONFIG, 'spawnGap', 4, 30).name('Spawn Gap (units)');
+            gameFolder.add(CONFIG, 'startShields', 1, 10).step(1).name('Start Shields');
+            gameFolder.add(CONFIG, 'gameDuration', 10, 300).step(1).name('Duration (s)');
+            gameFolder.add(CONFIG, 'spawnEnemies').name('Spawn Enemies');
+            gameFolder.add(CONFIG, 'infiniteTime').name('Infinite Time');
+            gameFolder.open();
+
+            const tunnelFolder = gui.addFolder('Tunnel Environment');
+            const tunnelParams = {
+                fogNear: 12,
+                fogFar: 70,
+                emissive: 1.2
+            };
+            tunnelFolder.add(tunnelParams, 'fogNear', 0, 50).onChange(v => scene.fog.near = v);
+            tunnelFolder.add(tunnelParams, 'fogFar', 10, 200).onChange(v => scene.fog.far = v);
+            if (floorMat) {
+                tunnelFolder.add(floorMat, 'emissiveIntensity', 0, 5).name('Floor Glow');
+            }
+            tunnelFolder.open();
+
+            const camFolder = gui.addFolder('Camera Settings');
+            camFolder.add(camera, 'fov', 20, 120).onChange(() => camera.updateProjectionMatrix()).name('FOV');
+            camFolder.add(camera.position, 'y', 1, 10).name('Cam Height');
+            camFolder.add(camera.position, 'z', 0, 30).name('Cam Distance');
+            camFolder.open();
+
+            const floorFolder = gui.addFolder('Floor Textures');
+            const texConfig = { repeatX: 1, repeatY: 40 };
+            floorFolder.add(texConfig, 'repeatX', 0.1, 10).name('Repeat X').onChange(v => {
+                if (typeof activeFloorMaps !== 'undefined') {
+                    activeFloorMaps.forEach(m => m.repeat.x = v);
+                }
+            });
+            floorFolder.add(texConfig, 'repeatY', 1, 100).name('Repeat Y').onChange(v => {
+                if (typeof activeFloorMaps !== 'undefined') {
+                    activeFloorMaps.forEach(m => m.repeat.y = v);
+                }
+            });
+        }
+
+        // ─── § 17 INITIALIZATION ──────────────────────────────────────────
+        // Load lil-gui only if DEV_MODE is enabled
+        (async () => {
+            if (DEV_MODE) {
+                try {
+                    const guiModule = await import('https://cdn.jsdelivr.net/npm/lil-gui@0.19/+esm');
+                    GUI = guiModule.default;
+                } catch (e) {
+                    console.warn('Failed to load lil-gui:', e);
+                }
+            }
+
+            initScene();
+            createWallSigns();
+            createCrowd();
+            PartyCrowd.init();
+            _initGooPool();
+            _initConfettiPool();
+            createFinishLine();
+            Player.init();
+            EnemyManager.init();
+            ScoreSystem.init();
+            VPNSystem.init();
+            SpeedLinesVisuals.init();
+            PhishingHookSystem.init();
+            if (HUD && HUD.init) HUD.init();
+            AudioManager.init();
+            setupDevPanel();
+
+            requestAnimationFrame(t => { lastTime = t; requestAnimationFrame(update); });
+            GameState.setState(STATES.SPLASH);
+        })();
+
+    </script>
+    <!-- #endregion MAIN_SCRIPT -->
+</body>
+
+</html>
