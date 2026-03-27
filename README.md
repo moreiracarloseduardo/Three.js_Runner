@@ -64,5 +64,3 @@ Since this project uses **ESM (ECMAScript Modules)** and **Import Maps**, it req
 - `build.js`: Script for bundling/embedding assets (used for playable-ad generation).
 
 ---
-
-Developed with ❤️ and **Three.js**. Stay safe out there!
