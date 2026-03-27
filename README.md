@@ -1,4 +1,4 @@
-# 🛡️ PARTYHAT - Dodge the Digital S.T.D.s
+# 🛡️ Runner Game
 
 **PARTYHAT** is a high-octane 3D "Runner" game built with **Three.js** and **GLSL Shaders**. Navigate through a neon-soaked digital landscape, dodging viruses, phishing attempts, and malware to keep your data clean.
 
